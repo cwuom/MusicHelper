@@ -7,6 +7,7 @@ import platform
 import sys
 import time
 import traceback
+from random import randint
 
 import requests
 import keyboard
@@ -52,8 +53,7 @@ config = configparser.ConfigParser()
 
 def write_cfg():
     config["API"] = {
-        "url": "https://music.ghxi.com/wp-admin/admin-ajax.php"
-        ,
+        "url": "https://music.ghxi.com/wp-admin/admin-ajax.php",
         "music_type": "qq"
     }
 
@@ -152,7 +152,10 @@ def download(url: str, file_name: str):
             bar.close()
             break
         except:
-            file_name = "不和谐的文件名(请手动重命名).mp3"
+            while True:
+                file_name = f"Songs/不和谐的文件名(请手动重命名)_{randint(100000, 999999)}.mp3"
+                if not os.path.exists(file_name):
+                    break
             continue
 
 
@@ -276,6 +279,17 @@ def makedirs(folder):
         os.makedirs(folder)
 
 
+def match_music_type(music_url, song):
+    if music_url.find(".flac") != -1:
+        download(music_url, f"Songs/{song.song_name}-{song.singer}.flac")
+    elif music_url.find(".wav") != -1:
+        download(music_url, f"Songs/{song.song_name}-{song.singer}.wav")
+    elif music_url.find(".mp3") != -1:
+        download(music_url, f"Songs/{song.song_name}-{song.singer}.mp3")
+    else:
+        logger.error(f"无法匹配{music_url}的文件类型，因为他不受支持。若你确认这是本项目的问题，请联系作者。当然，你也可以自己修改代码或是手动下载。")
+
+
 def SelectStyle0():
     index = 0
     for song in songs_data:
@@ -294,12 +308,7 @@ def SelectStyle0():
     logger.info(title="Done", info=f"歌曲下载链接解析完成，url={music_url}")
     makedirs("Songs")
 
-    if music_url.find(".flac") != -1:
-        download(music_url, f"Songs/{song.song_name}-{song.singer}.flac")
-    elif music_url.find(".wav") != -1:
-        download(music_url, f"Songs/{song.song_name}-{song.singer}.wav")
-    elif music_url.find(".mp3") != -1:
-        download(music_url, f"Songs/{song.song_name}-{song.singer}.mp3")
+    match_music_type(music_url, song)
 
 
 def SelectStyle1():
@@ -323,12 +332,7 @@ def SelectStyle1():
     logger.info(title="Done", info=f"歌曲下载链接解析完成，url={music_url}")
     makedirs("Songs")
 
-    if music_url.find(".flac") != -1:
-        download(music_url, f"Songs/{song.song_name}-{song.singer}.flac")
-    elif music_url.find(".wav") != -1:
-        download(music_url, f"Songs/{song.song_name}-{song.singer}.wav")
-    elif music_url.find(".mp3") != -1:
-        download(music_url, f"Songs/{song.song_name}-{song.singer}.mp3")
+    match_music_type(music_url, song)
 
 
 log_file = open("UncaughtException.txt", "a+")
@@ -338,12 +342,14 @@ def handle_exception(exc_type, exc_value, exc_traceback):
     if issubclass(exc_type, KeyboardInterrupt):
         sys.__excepthook__(exc_type, exc_value, exc_traceback)
         return
+    print("程序在运行时发生致命错误，请查看日志文件<UncaughtException.txt>中的报错信息并报告给作者。")
+    print("程序将在10s后退出。 报错详情如下：")
     for l in traceback.format_exception(exc_type, exc_value, exc_traceback):
-        print("程序在运行时发生致命错误，请查看日志文件<UncaughtException.txt>中的报错信息并报告给作者。")
         log_file.write(l)
-        log_file.close()
-        print("程序将在10s后退出。")
-        time.sleep(10)
+        print(l, end="")
+
+    log_file.close()
+    time.sleep(10)
 
 
 if DEBUG_MODE:
