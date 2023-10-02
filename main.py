@@ -1,6 +1,6 @@
 """
 MusicHelper by @im-cwuom
-Github: https://github.com/cwuom/MusicHelper/
+GitHub: https://github.com/cwuom/MusicHelper/
 """
 
 from __future__ import annotations
