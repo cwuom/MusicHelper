@@ -12,7 +12,7 @@ import platform
 import sys
 import time
 import traceback
-from random import randint
+from random import randint, choice
 
 import requests
 import keyboard
@@ -24,6 +24,7 @@ from tqdm import tqdm
 
 signal.signal(signal.SIGINT, multitasking.killall)
 
+NODE_API = "http://localhost:3000/"
 API_URL = "https://music.ghxi.com/wp-admin/admin-ajax.php"
 DEBUG_MODE = True
 
@@ -52,6 +53,18 @@ headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/63.0.3239.132 '
                   'Safari/537.36 QIHU 360SE'
 }
+
+user_agent_list = [
+    "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/68.0.3440.106 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/67.0.3396.99 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; WOW64) Gecko/20100101 Firefox/61.0",
+    "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/64.0.3282.186 Safari/537.36",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/62.0.3202.62 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/45.0.2454.101 Safari/537.36",
+    "Mozilla/4.0 (compatible; MSIE 7.0; Windows NT 6.0)",
+    "Mozilla/5.0 (Macintosh; U; PPC Mac OS X 10.5; en-US; rv:1.9.2.15) Gecko/20110303 Firefox/3.6.15",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36 Edg/117.0.2045.47"
+]
 
 config = configparser.ConfigParser()
 
@@ -167,7 +180,38 @@ def download(url: str, file_name: str):
 
 # =========================================================
 
+
+def runNodeApi():
+    logger.info("正在检查接口是否工作...")
+
+    while True:
+        try:
+            requests.get(NODE_API)
+            break
+        except Exception:
+            logger.info("正在启动网易云API服务")
+            cmd = """
+            cd node
+            node app.js
+                """
+            with open("start.bat", "w") as w:
+                w.write(cmd)
+
+            os.system("start start.bat")
+            time.sleep(3)
+            pass
+
+    logger.info(title="OK", info="app.js - 服务启动成功")
+
+
 # 歌曲结构体
+class SongStruct_Playlist:
+    def __init__(self):
+        self.song_name = ""
+        self.singer = []
+        self.al_name = ""
+
+
 class SongStruct:
     def __init__(self):
         self.song_name = ""
@@ -178,21 +222,26 @@ class SongStruct:
         self.size128 = 1
         self.size320 = 1
         self.size_flac = 1
+        self.song_url = ""
+        self.music_type = ""
 
 
 # 自定日志输出类
 class Logger:
     def __init__(self):
-        self.time_now = time.strftime('%H:%M:%S', time.localtime())
+        self.time_now = None
 
     def info(self, info, title="INFO"):
+        self.time_now = time.strftime('%H:%M:%S', time.localtime())
         print(f"[{self.time_now}] [{title}] {info}")
 
     def error(self, info):
+        self.time_now = time.strftime('%H:%M:%S', time.localtime())
         print(f"[ERROR - {self.time_now}] {info}")
 
     def debug(self, info):
         if DEBUG_MODE:
+            self.time_now = time.strftime('%H:%M:%S', time.localtime())
             print(f"[DEBUG - {self.time_now}] {info}")
 
 
@@ -213,22 +262,24 @@ class Music:
             "search_word": search_word
         }
         req = requests.post(API_URL, data=data, headers=request_headers, cookies=_cookies)
-        return json.loads(req.text)
+        # logger.debug(req.text)
+        return [json.loads(req.text), music_type]
 
     @staticmethod
-    def get_song_url(song_id, _cookies):
+    def get_song_url(_song_id, _cookies, _music_type=music_type):
         """
         获取歌曲直链，返回结果不保证百分百正确。
-        :param song_id: 歌曲id
+        :param _music_type:
+        :param _song_id: 歌曲id
         :param _cookies: 同上
         :return: 歌曲直链
         """
         data = {
             "action": "gh_music_ajax",
             "type": "getMusicUrl",
-            "music_type": music_type,
+            "music_type": _music_type,
             "music_size": "flac",
-            "songid": song_id
+            "songid": _song_id
         }
 
         req = requests.post(API_URL, data=data, headers=request_headers, cookies=_cookies)
@@ -397,6 +448,12 @@ def SelectStyle1():
 log_file = open("UncaughtException.txt", "a+")
 
 
+def refresh_ua():
+    global request_headers
+    request_headers["User-Agent"] = choice(user_agent_list)
+    headers["User-Agent"] = choice(user_agent_list)
+
+
 def handle_exception(exc_type, exc_value, exc_traceback):
     if issubclass(exc_type, KeyboardInterrupt):
         sys.__excepthook__(exc_type, exc_value, exc_traceback)
@@ -414,7 +471,111 @@ def handle_exception(exc_type, exc_value, exc_traceback):
 if DEBUG_MODE:
     sys.excepthook = handle_exception
 
+
+def getNeteasePlaylistM1(playlist_id):
+    global music_type
+    playlist_url = "http://localhost:3000/playlist/track/all?id=" + playlist_id
+    pl_data = json.loads(requests.get(playlist_url).text)
+    pl_data_songs = pl_data["songs"]
+
+    pl_songs_data = []
+    for _song in pl_data_songs:
+        _song_struct = SongStruct_Playlist()
+        _song_struct.song_name = _song["name"]
+        _song_struct.singer = _song["ar"]
+        _song_struct.al_name = _song["al"]["name"]
+        pl_songs_data.append(_song_struct)
+
+    _music = Music()
+    search_res = {}
+
+    index = 0
+    for _song in pl_songs_data:
+        clear()
+        print("============================\n正在爬取歌单中的所有歌曲信息, 请稍等...")
+        print(f"进度: {index} / {len(pl_songs_data)}\n============================\n\n")
+        refresh_ua()
+        for x in range(30):
+            try:
+                logger.info(title="Getting", info=f"{_song.song_name} - {_song.singer[0]['name']}")
+                search_res[index] = _music.search(f"{_song.song_name} {_song.singer[0]['name']}", cookies)
+                var = search_res.get(index)[0]["data"]
+                logger.info(title="Done", info=f"{_song.song_name} - {_song.singer[0]['name']}")
+                index += 1
+                music_type = "wy"
+                break
+            except Exception:
+                logger.error(f"无法获取歌曲data对象，正在切换检索源并重试...  x={x}/30")
+                if music_type == "wy":
+                    music_type = "qq"
+                else:
+                    music_type = "wy"
+                time.sleep(0.5)
+                continue
+
+    logger.debug(search_res)
+
+    song_data = []
+    for i in range(len(pl_songs_data)):
+        state = False
+        song_pl = pl_songs_data[i]
+        song_search = search_res.get(i)
+        for _song in song_search[0]["data"]:
+            _song_name = _song["songname"]
+            singer = _song["singer"]
+            albumname = _song["albumname"]
+            _song_struct = SongStruct()
+            _song_struct.song_name = _song["songname"]
+            _song_struct.singer = _song["singer"]
+            _song_struct.albumname = _song["albumname"]
+            _song_struct.album_img = _song["album_img"]
+            _song_struct.song_id = _song["songid"]
+            _song_struct.size128 = _song["size128"]
+            _song_struct.size320 = _song["size320"]
+            _song_struct.size_flac = _song["sizeflac"]
+            _song_struct.music_type = song_search[1]
+            if _song_name == song_pl.song_name and singer == song_pl.singer[0]['name'] and albumname == song_pl.al_name:
+                song_data.append(_song_struct)
+                state = True
+                break
+
+        if not state:
+            _song = song_search[0]["data"][0]
+            _song_struct = SongStruct()
+            _song_struct.song_name = _song["songname"]
+            _song_struct.singer = _song["singer"]
+            _song_struct.albumname = _song["albumname"]
+            _song_struct.album_img = _song["album_img"]
+            _song_struct.song_id = _song["songid"]
+            _song_struct.size128 = _song["size128"]
+            _song_struct.size320 = _song["size320"]
+            _song_struct.size_flac = _song["sizeflac"]
+            _song_struct.music_type = song_search[1]
+            logger.error(
+                f"无法通过当前信息命中目标歌曲，已将《{_song_struct.song_name}》命中结果设为默认（搜索排行第一名）。")
+            song_data.append(_song_struct)
+
+    makedirs("Songs")
+    for _song in song_data:
+        logger.info(title="GetLink", info=_song.song_name)
+        for x in range(30):
+            try:
+                logger.debug("song.music_type=" + _song.music_type)
+                download_url = _music.get_song_url(_song.song_id, cookies, _song.music_type)["url"]
+                logger.debug(download_url)
+                download_url.find("test")
+                logger.info(title="Downloading", info=_song.song_name)
+                match_music_type(download_url, _song)
+                break
+            except Exception:
+                logger.error(f"获取歌曲链接失败，正在重试... x={x}/30")
+                continue
+
+    logger.info(title="Done", info="歌单歌曲下载完成!")
+
+
 if __name__ == '__main__':
+    refresh_ua()
     logger = Logger()
     logger.info(title="Starting", info="正在初始化程序，这可能需要一些时间来获取数据。")
     music = Music()
@@ -451,6 +612,7 @@ if __name__ == '__main__':
             print("平台切换指令\n"
                   "$#wy# - 将搜索源切换成网易云音乐\n"
                   "$#qq# - 将搜索源切换成QQ音乐\n"
+                  "$#pld-wy-1# - 使用歌单批量下载，模式1(不稳定，非常容易被ban，但是无需会员就能下载无损)\n"
                   "$#about# - 查看项目信息\n"
                   "$#faq# - 查看常见问题")
         if song_name == "$#wy#":
@@ -468,6 +630,12 @@ if __name__ == '__main__':
         if song_name == "$#about#":
             print("作者: @im-cwuom | 仅供学习交流使用，请在72小时内删除本程序。")
 
+        if song_name == "$#pld-wy-1#":
+            runNodeApi()
+            temp_music_type = music
+            playlist = input("歌单ID> ")
+            getNeteasePlaylistM1(playlist)
+
         if song_name == "$#faq#":
             print("Q: 为什么下载的音乐有问题/无法搜索音乐/频繁报错/无法下载?\nA: "
                   "本项目使用的是别人的API，可能是对方的API服务器反爬手段增强了或是对本程序做出了一些限制。又或是API服务器目前正出现故障，请关注最新动态或是过个几小时/一天再去使用。")
@@ -475,7 +643,7 @@ if __name__ == '__main__':
         if song_name[0] + song_name[1] == "$#" and song_name[-1] == "#":
             continue
 
-        search_result = music.search(song_name, _cookies=cookies)
+        search_result = music.search(song_name, _cookies=cookies)[0]
         songs_data = []
         # noinspection PyBroadException
         try:
