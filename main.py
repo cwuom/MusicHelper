@@ -43,17 +43,22 @@ select_char = "X"
 MB = 1024 ** 2
 
 request_headers = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 "
-                  "Safari/537.36 Edg/117.0.2045.43",
-    "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-    "Accept": "application/json, text/plain, */*",
-    "Origin": "https://music.ghxi.com",
-    "Referer": "https://music.ghxi.com/",
-    "Accept-Encoding": "gzip, deflate, br",
-    "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
-    "Connection": "keep-alive",
-    "Host": "music.ghxi.com",
+    'authority': 'music.ghxi.com',
+    'accept': '*/*',
+    'accept-language': 'zh-CN,zh;q=0.9',
+    'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
+    'origin': 'https://music.ghxi.com',
+    'referer': 'https://music.ghxi.com/',
+    'sec-ch-ua': '"Google Chrome";v="117", "Not;A=Brand";v="8", "Chromium";v="117"',
+    'sec-ch-ua-mobile': '?0',
+    'sec-ch-ua-platform': '"Windows"',
+    'sec-fetch-dest': 'empty',
+    'sec-fetch-mode': 'cors',
+    'sec-fetch-site': 'same-origin',
+    'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36',
+    'x-requested-with': 'XMLHttpRequest',
 }
+
 headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/63.0.3239.132 '
                   'Safari/537.36 QIHU 360SE'
@@ -217,7 +222,7 @@ class Music:
         return [json.loads(req.text), music_type]
 
     @staticmethod
-    def get_song_url(_song_id, _cookies, _music_type=music_type):
+    def get_song_url(_song_id, _cookies, _music_type=""):
         """
         获取歌曲直链，返回结果不保证百分百正确。
         :param _music_type:
@@ -225,6 +230,8 @@ class Music:
         :param _cookies: 同上
         :return: 歌曲直链
         """
+        if _music_type == "":
+            _music_type = music_type
         data = {
             "action": "gh_music_ajax",
             "type": "getMusicUrl",
@@ -413,7 +420,7 @@ log_file = open("UncaughtException.txt", "a+")
 
 def refresh_ua():
     global request_headers
-    request_headers["User-Agent"] = choice(user_agent_list)
+    # request_headers["User-Agent"] = choice(user_agent_list)
     headers["User-Agent"] = choice(user_agent_list)
 
 
