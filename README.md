@@ -126,12 +126,12 @@ debug = False
 
 # 附加组件下载
 ## 歌单解析API工具(只解析单曲无需下载)
-### 网易云NodeAPI下载
+### 网易云NodeAPI下载（node）
 来源: https://github.com/Binaryify/NeteaseCloudMusicApi
 > 这是打包好的下载地址，在终端输入*node app.js*即可直接运行(windows)
 
 > https://wwjj.lanzouw.com/ir3NA1ake1pc
-### QQ音乐NodeAPI下载
+### QQ音乐NodeAPI下载（nodeQQ）
 来源: https://github.com/jsososo/QQMusicApi
 > 这是打包好的下载地址，在终端输入*npm start*即可直接运行(windows)
 
