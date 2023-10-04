@@ -3,3 +3,4 @@ multitasking==0.0.11
 pyqrcode==1.2.1
 setuptools==67.7.2
 tqdm==4.24.0
+python-vlc
