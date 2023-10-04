@@ -1,7 +1,7 @@
 # MusicHelper
 一个通过Python编写的QQ、网易云音乐无损音乐爬取工具
 
-# 歌单API工具(只解析单曲无需下载)
+# 歌单解析API工具(只解析单曲无需下载)
 ## 网易云NodeAPI下载
 来源: https://github.com/Binaryify/NeteaseCloudMusicApi
 > 这是打包好的下载地址，在终端输入node app.js即可直接运行(windows)
