@@ -1,6 +1,22 @@
+<h1 align="center">MusicHelper</h1>
+<div align="center">
 
-# MusicHelper
-一个通过Python编写的QQ、网易云音乐无损音乐爬取工具
+<p align="center">
+    <h3>一个通过Python编写的QQ、网易云音乐无损音乐爬取工具</h3>
+    <p align="center">
+        <a href="https://t.me/cwuoms_group">
+<img alt="JoinTelegramGroup" src="https://img.shields.io/badge/Telegram-Group-blue" />
+</a>
+      <p>
+检索范围<br />
+QQ音乐 / 网易云音乐<br />
+<br />
+    </p>
+    <p align="center">
+      <img src="logo.png" />
+    </p>
+  </p>
+</div>
 
 # 如何运行？
 ## 自行编译此项目
