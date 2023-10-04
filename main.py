@@ -864,7 +864,6 @@ def getQQMusicPlaylistM2(playlist_id):
             headers=headers).text
         surl = json.loads(surl)
         surl = surl["data"]
-        surl = surl["data"]
 
         name = requests.get(NODE_API_QQ + "/song?songmid=" + str(_id),
                             headers=headers).text
@@ -1022,7 +1021,7 @@ if __name__ == '__main__':
             config.set('API', 'music_type', 'wy')
             with open('config.ini', 'w') as configfile:
                 config.write(configfile)
-            logger.info("成功将检索源切换为网易云云音乐。")
+            logger.info("成功将检索源切换为网易云音乐。")
         if song_name == "$#qq#":
             music_type = "qq"
             config.set('API', 'music_type', 'qq')
