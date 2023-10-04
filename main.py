@@ -25,6 +25,9 @@ import multitasking
 import signal
 from tqdm import tqdm
 
+os.environ['PYTHON_VLC_MODULE_PATH'] = "./vlc-3.0.6"  # 不要尝试更换顺序 此项需要在import vlc之前
+import vlc
+
 signal.signal(signal.SIGINT, multitasking.killall)
 
 NODE_API = "http://localhost:3000"
@@ -39,6 +42,8 @@ INDEX_MIN = 1
 SelectStyle = 0
 music_type = "qq"
 select_char = "X"
+playing_song_name = ""
+playing = False
 
 MB = 1024 ** 2
 
@@ -158,6 +163,109 @@ def runNodeApi(type="wy"):
             pass
 
     logger.info(title="OK", info="app.js - 服务启动成功")
+
+
+class Player:
+    def __init__(self, *args):
+        if args:
+            instance = vlc.Instance(*args)
+            self.media = instance.media_player_new()
+        else:
+            self.media = vlc.MediaPlayer()
+
+    # 设置待播放的url地址或本地文件路径，每次调用都会重新加载资源
+    def set_uri(self, uri):
+        self.media.set_mrl(uri)
+
+    # 播放 成功返回0，失败返回-1
+    def play(self, path=None):
+        if path:
+            self.set_uri(path)
+            return self.media.play()
+        else:
+            return self.media.play()
+
+    # 暂停
+    def pause(self):
+        self.media.pause()
+
+    # 恢复
+    def resume(self):
+        self.media.set_pause(0)
+
+    # 停止
+    def stop(self):
+        self.media.stop()
+
+    # 释放资源
+    def release(self):
+        return self.media.release()
+
+    # 是否正在播放
+    def is_playing(self):
+        return self.media.is_playing()
+
+    # 已播放时间，返回毫秒值
+    def get_time(self):
+        return self.media.get_time()
+
+    # 拖动指定的毫秒值处播放。成功返回0，失败返回-1 (需要注意，只有当前多媒体格式或流媒体协议支持才会生效)
+    def set_time(self, ms):
+        return self.media.set_time(ms)
+
+    # 音视频总长度，返回毫秒值
+    def get_length(self):
+        return self.media.get_length()
+
+    # 获取当前音量（0~100）
+    def get_volume(self):
+        return self.media.audio_get_volume()
+
+    # 设置音量（0~100）
+    def set_volume(self, volume):
+        return self.media.audio_set_volume(volume)
+
+    # 返回当前状态：正在播放；暂停中；其他
+    def get_state(self):
+        state = self.media.get_state()
+        if state == vlc.State.Playing:
+            return 1
+        elif state == vlc.State.Paused:
+            return 0
+        else:
+            return -1
+
+    # 当前播放进度情况。返回0.0~1.0之间的浮点数
+    def get_position(self):
+        return self.media.get_position()
+
+    # 拖动当前进度，传入0.0~1.0之间的浮点数(需要注意，只有当前多媒体格式或流媒体协议支持才会生效)
+    def set_position(self, float_val):
+        return self.media.set_position(float_val)
+
+    # 获取当前文件播放速率
+    def get_rate(self):
+        return self.media.get_rate()
+
+    # 设置播放速率（如：1.2，表示加速1.2倍播放）
+    def set_rate(self, rate):
+        return self.media.set_rate(rate)
+
+    # 设置宽高比率（如"16:9","4:3"）
+    def set_ratio(self, ratio):
+        self.media.video_set_scale(0)  # 必须设置为0，否则无法修改屏幕宽高
+        self.media.video_set_aspect_ratio(ratio)
+
+    # 注册监听器
+    def add_callback(self, event_type, callback):
+        self.media.event_manager().event_attach(event_type, callback)
+
+    # 移除监听器
+    def remove_callback(self, event_type, callback):
+        self.media.event_manager().event_detach(event_type, callback)
+
+
+player = Player()
 
 
 # 歌曲结构体
@@ -299,6 +407,7 @@ def show_result(_index):
 
 
 def hook_keys(x):
+    global playing, player, playing_song_name
     """
     监听键盘事件
     :param x: 键盘event，包括按键按下松开之类的
@@ -306,20 +415,40 @@ def hook_keys(x):
     global INDEX, INDEX_MAX, INDEX_MIN
 
     if x.event_type == 'down' and x.name == 'left':
-        pass
+        player.set_time(player.get_time() - 1000)
     if x.event_type == 'down' and x.name == 'right':
-        pass
-    if x.event_type == 'down' and x.name == 'up':
+        player.set_time(player.get_time() + 1000)
+    if x.event_type == 'down' and x.name == 'up' and not playing:
         clear()
         if INDEX > INDEX_MIN:
             INDEX -= 1
 
         show_result(INDEX)
-    if x.event_type == 'down' and x.name == 'down':
+    if x.event_type == 'down' and x.name == 'down' and not playing:
         clear()
         if INDEX < INDEX_MAX:
             INDEX += 1
 
+        show_result(INDEX)
+    if x.event_type == 'down' and x.name == 'space':
+        if playing:
+            if player.is_playing():
+                player.pause()
+            else:
+                player.resume()
+        else:
+            _song = songs_data[INDEX - 1]
+            logger.info("正在解析歌曲下载链接... 请稍等")
+            music_url = music.get_song_url(_song.song_id, cookies)["url"]
+            playing = True
+            playing_song_name = _song.song_name + " - " + _song.singer
+            play(music_url)
+
+    if x.event_type == 'down' and x.name == 'esc':
+        playing = False
+        playing_song_name = ""
+        player.release()
+        clear()
         show_result(INDEX)
 
 
@@ -374,14 +503,19 @@ def SelectStyle0():
         else:
             print(f"[ ] {_song.song_name} - {_song.singer} [{_song.albumname}]")
 
-    keyboard.hook(hook_keys)
-    keyboard.wait("Enter")
-    keyboard.unhook_all()
-    _song = songs_data[INDEX - 1]
-    logger.info("正在解析歌曲下载链接... 请稍等")
-    music_url = music.get_song_url(_song.song_id, cookies)["url"]
-    logger.info(title="Done", info=f"歌曲下载链接解析完成，url={music_url}")
-    makedirs("Songs")
+    while True:
+        keyboard.hook(hook_keys)
+        keyboard.wait("Enter")
+        keyboard.unhook_all()
+        if not playing:
+            _song = songs_data[INDEX - 1]
+            logger.info("正在解析歌曲下载链接... 请稍等")
+            music_url = music.get_song_url(_song.song_id, cookies)["url"]
+            logger.info(title="Done", info=f"歌曲下载链接解析完成，url={music_url}")
+            makedirs("Songs")
+            break
+        else:
+            continue
 
     match_music_type(music_url, _song)
 
@@ -814,6 +948,27 @@ def output_help_list():
           "$#login-wy# - 登录网易云账号，pld-wy-2下载歌单时将用自己的cookies\n"
           "$#about# - 查看项目信息\n"
           "$#faq# - 查看常见问题")
+
+
+def my_call_back(event):
+    global player
+    clear()
+    print("正在试听所选歌曲，按下esc退出播放...")
+    i = int(round(player.get_position(), 2) * 100)
+    a = "*" * i
+    b = "." * (100 - i)
+    c = (i / 100) * 100
+    print("\r[{}] {:^3.0f}%[{}->{}]".format(playing_song_name, c, a, b), end="")
+    # print("".center(50 // 2, "-"))
+
+
+def play(url):
+    global player
+
+    clear()
+    player = Player()
+    player.add_callback(vlc.EventType.MediaPlayerTimeChanged, my_call_back)
+    player.play(url)
 
 
 if __name__ == '__main__':
