@@ -155,23 +155,34 @@ def runNodeApi(type="wy"):
         except Exception:
             logger.info("正在启动API服务")
             if type == "wy":
-                cmd = """
-                cd node
-                node app.js
-                    """
+                if os.path.exists("node/app.js"):
+                    cmd = """
+                    cd node
+                    node app.js
+                        """
+                else:
+                    logger.error("自动启动API服务失败，找不到`node/app.js`，请手动启动。")
+                    break
             elif type == "qq":
-                cmd = """
-                 cd nodeQQ
-                 npm start
-                     """
-            with open("start.bat", "w") as w:
-                w.write(cmd)
+                if os.path.exists("nodeQQ"):
+                    cmd = """
+                     cd nodeQQ
+                     npm start
+                         """
+                else:
+                    logger.error("自动启动API服务失败，找不到`nodeQQ`，请手动启动。")
+                    break
+
+            try:
+                with open("start.bat", "w") as w:
+                    w.write(cmd)
+                logger.info(title="OK", info="app.js - 服务启动成功")
+            except Exception:
+                pass
 
             os.system("start start.bat")
             time.sleep(3)
             pass
-
-    logger.info(title="OK", info="app.js - 服务启动成功")
 
 
 class Player:
@@ -1267,6 +1278,7 @@ if __name__ == '__main__':
                 "(2) 获取音乐url (默认，音质可选)\n(1/2)> ")
 
             try:
+                runNodeApi()
                 if mode == "1":
                     get_songs_netease_m2(res)
                 elif mode == "2":
