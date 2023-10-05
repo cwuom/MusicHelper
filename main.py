@@ -84,6 +84,12 @@ user_agent_list = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36 Edg/117.0.2045.47"
 ]
 
+"""
+standard => 标准,higher => 较高, exhigh=>极高, lossless=>无损, hires=>Hi-Res,
+ jyeffect => 高清环绕声, sky => 沉浸环绕声, jymaster => 超清母带
+"""
+level_list = ["standard", "higher", "exhigh", "lossless", "hires", "jyeffect", "sky", "jymaster"]
+
 config = configparser.ConfigParser()
 
 
@@ -377,6 +383,16 @@ class Music:
         req = requests.post(API_URL, data=data, headers=request_headers)
         return req.cookies.get_dict()
 
+    @staticmethod
+    def get_song_url_netease1(song_id):
+        req = requests.get(NODE_API + "/song/download/url?id=" + song_id, cookies=cookies_wy).text
+        return json.loads(req)["data"]["url"]
+
+    @staticmethod
+    def get_song_url_netease2(song_id, _level):
+        req = requests.get(NODE_API + f"/song/url/v1?id={song_id}&level={_level}").text
+        return json.loads(req)["data"][0]["url"]
+
 
 def clear():
     """
@@ -635,9 +651,19 @@ def save_music(url, music_name, singer_name):
             continue
 
 
+def get_netease_song_info(_id):
+    name = requests.get(NODE_API + "/song/detail?ids=" + str(_id) + "&timestamp=" + get_timerstamp()).text
+    name = json.loads(name)
+    name = name["songs"][0]
+    musicname = name["name"]
+    singername = name["ar"]
+    singername = singername[0]["name"]
+    return {"musicname": musicname, "singername": singername}
+
+
 def getNeteasePlaylistM1(playlist_id):
     global music_type
-    playlist_id = search_id(playlist_id)
+    playlist_id = search_plid(playlist_id)
     if playlist_id is None:
         logger.error(info="拉取歌单失败，请检查歌单URL是否包含歌单ID。")
         raise ValueError("歌单获取失败")
@@ -744,7 +770,7 @@ def getNeteasePlaylistM1(playlist_id):
 
 
 def getNeteasePlaylistM2(playlist_id):
-    playlist_id = search_id(playlist_id)
+    playlist_id = search_plid(playlist_id)
     if playlist_id is None:
         logger.error(info="拉取歌单失败，请检查歌单URL是否包含歌单ID。")
         raise ValueError("歌单获取失败")
@@ -766,13 +792,17 @@ def getNeteasePlaylistM2(playlist_id):
         surl = surl["data"][0]
         surl = surl["url"]
 
-        name = requests.get(NODE_API + "/song/detail?ids=" + str(_id) + "&timestamp=" + t,
-                            headers=headers, cookies=cookies_wy).text
-        name = json.loads(name)
-        name = name["songs"][0]
-        musicname = name["name"]
-        singername = name["ar"]
-        singername = singername[0]["name"]
+        # name = requests.get(NODE_API + "/song/detail?ids=" + str(_id) + "&timestamp=" + t,
+        #                     headers=headers, cookies=cookies_wy).text
+        # name = json.loads(name)
+        # name = name["songs"][0]
+        # musicname = name["name"]
+        # singername = name["ar"]
+        # singername = singername[0]["name"]
+        data = get_netease_song_info(_id)
+        musicname = data["musicname"]
+        singername = data["singername"]
+
         if surl is None:
             logger.error(f"亲爱的，{musicname} 暂无版权。已跳过")
         else:
@@ -787,7 +817,7 @@ def getNeteasePlaylistM2(playlist_id):
 def getQQMusicPlaylistM1(playlist_id):
     global music_type
 
-    playlist_id = search_id(playlist_id)
+    playlist_id = search_plid(playlist_id)
     if playlist_id is None:
         logger.error(info="拉取歌单失败，请检查歌单URL是否包含歌单ID。")
         raise ValueError("歌单获取失败")
@@ -892,7 +922,7 @@ def getQQMusicPlaylistM1(playlist_id):
 
 
 def getQQMusicPlaylistM2(playlist_id):
-    playlist_id = search_id(playlist_id)
+    playlist_id = search_plid(playlist_id)
     if playlist_id is None:
         logger.error(info="拉取歌单失败，请检查歌单URL是否包含歌单ID。")
         raise ValueError("歌单获取失败")
@@ -1032,17 +1062,65 @@ def get_playlist_id_qq(url):
         return None
 
 
-def search_id(url):
-    try:
-        int(url)
-        return url
-    except Exception:
+def search_plid(url):
+    if type(url) != int:
         if "music.163.com" in url:
             return get_playlist_id_netease(url)
         elif "y.qq.com" in url:
             return get_playlist_id_qq(url)
         else:
             return None
+    else:
+        return url
+
+
+def get_music_id_netease(url):
+    # https://music.163.com/#/song?id=1
+    try:
+        pl_id = re.search(r'.*/song\?id=(\d+)', url)
+        return pl_id.group(1).replace('id=', '')
+    except Exception:
+        return None
+
+
+def search_mid(string):
+    if "music.163.com" in string:
+        return get_music_id_netease(string)
+    elif "y.qq.com" in string:
+        return 404
+    else:
+        return string
+
+
+def get_songs_netease_m1(song_id):
+    level = input("音质选择: (1) 标准 (2) 较高 (3) 极高 "
+                  "(4) 无损 (5) Hi-Res (6) 高清环绕声 "
+                  "(7) 沉浸环绕声 (8) 超清母带\n(默认5 - Hi-Res) 请输入序号> ")
+
+    try:
+        level = level_list[int(level) - 1]
+    except Exception:
+        logger.info("将使用默认音质进行解析。")
+        level = level_list[4]
+
+    url = music.get_song_url_netease2(song_id, level)
+
+    data = get_netease_song_info(song_id)
+    musicname = data["musicname"]
+    singername = data["singername"]
+
+    logger.info(title="Downloading", info="正在下载 {} - {}".format(musicname, singername))
+    save_music(url, musicname, singername)
+
+
+def get_songs_netease_m2(song_id):
+    url = music.get_song_url_netease1(song_id)
+    data = get_netease_song_info(song_id)
+    musicname = data["musicname"]
+    singername = data["singername"]
+
+    logger.info(title="Downloading", info="正在下载 {} - {}".format(musicname, singername))
+    save_music(url, musicname, singername)
 
 
 if __name__ == '__main__':
@@ -1088,7 +1166,7 @@ if __name__ == '__main__':
         traceback.print_exc(file=open("error.txt", "a+"))
 
     while True:
-        song_name = input("请输入要下载的歌曲名称(特殊指令格式为'$#[command]#', $#help#可查看特殊指令)\n> ")
+        song_name = input("请输入要下载的歌曲名称或歌曲url(特殊指令格式为'$#[command]#', $#help#可查看特殊指令)\n> ")
         if song_name == "$#help#":
             output_help_list()
         if song_name == "$#wy#":
@@ -1177,6 +1255,35 @@ if __name__ == '__main__':
                 continue
         except Exception:
             continue
+
+        res = search_mid(song_name)
+        if res != song_name:
+            if res == 404:
+                logger.error("对不起，暂不支持解析QQ音乐单曲。")
+                continue
+
+            mode = input(
+                "解析模式选择 \n(1) 获取客户端歌曲下载url (接口获取的是歌曲试听 url, 但存在部分歌曲在非 VIP 账号上可以下载无损音质而不能试听无损音质, 使用此接口可使非 VIP 账号获取这些歌曲的无损音频)\n"
+                "(2) 获取音乐url (默认，音质可选)\n(1/2)> ")
+
+            try:
+                if mode == "1":
+                    get_songs_netease_m2(res)
+                elif mode == "2":
+                    get_songs_netease_m1(res)
+                else:
+                    logger.info("将使用默认解析模式...")
+                    get_songs_netease_m1(res)
+            except Exception:
+                logger.error("无法解析音乐链接，可能是其音乐链接不包含单曲ID。请检查后重试")
+                traceback.print_exc(file=open("error.txt", "a+"))
+                pass
+
+            continue
+        else:
+            if "https://" in res:
+                logger.error("不受支持的音乐链接，仅限网易云音乐单曲链接。")
+                continue
 
         search_result = music.search(song_name, _cookies=cookies)[0]
         songs_data = []
