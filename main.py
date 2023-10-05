@@ -44,6 +44,8 @@ music_type = "qq"
 select_char = "X"
 playing_song_name = ""
 playing = False
+should_wait_enter = True
+flag_back = False
 
 MB = 1024 ** 2
 
@@ -407,7 +409,7 @@ def show_result(_index):
 
 
 def hook_keys(x):
-    global playing, player, playing_song_name
+    global playing, player, playing_song_name, should_wait_enter, flag_back
     """
     监听键盘事件
     :param x: 键盘event，包括按键按下松开之类的
@@ -445,11 +447,19 @@ def hook_keys(x):
             play(music_url)
 
     if x.event_type == 'down' and x.name == 'esc':
-        playing = False
-        playing_song_name = ""
-        player.release()
-        clear()
-        show_result(INDEX)
+        if playing:
+            playing = False
+            playing_song_name = ""
+            player.release()
+            clear()
+            show_result(INDEX)
+        else:
+            flag_back = True
+            should_wait_enter = False
+
+    if x.event_type == 'down' and x.name == 'enter' and not playing:
+        flag_back = False
+        should_wait_enter = False
 
 
 def makedirs(folder):
@@ -492,6 +502,7 @@ def match_music_type(music_url, _song):
 
 
 def SelectStyle0():
+    global should_wait_enter
     """
     选择风格0，用上下键选择歌曲，会导致清屏。
     """
@@ -505,8 +516,12 @@ def SelectStyle0():
 
     while True:
         keyboard.hook(hook_keys)
-        keyboard.wait("Enter")
+        while should_wait_enter:
+            time.sleep(0.1)
+        should_wait_enter = True
         keyboard.unhook_all()
+        if flag_back:
+            break
         if not playing:
             _song = songs_data[INDEX - 1]
             logger.info("正在解析歌曲下载链接... 请稍等")
@@ -517,7 +532,8 @@ def SelectStyle0():
         else:
             continue
 
-    match_music_type(music_url, _song)
+    if not flag_back:
+        match_music_type(music_url, _song)
 
 
 def SelectStyle1():
@@ -949,7 +965,7 @@ def output_help_list():
           "$#faq# - 查看常见问题")
 
 
-def my_call_back(event):
+def player_call_back(event):
     global player
     clear()
     print("正在试听所选歌曲，按下esc退出播放...")
@@ -966,7 +982,7 @@ def play(url):
 
     clear()
     player = Player()
-    player.add_callback(vlc.EventType.MediaPlayerTimeChanged, my_call_back)
+    player.add_callback(vlc.EventType.MediaPlayerTimeChanged, player_call_back)
     player.play(url)
 
 
@@ -1035,7 +1051,9 @@ if __name__ == '__main__':
             runNodeApi()
             temp_music_type = music
             try:
-                playlist = input("(MODE1) 歌单ID> ")
+                playlist = input("(MODE1)(Netease) [输入'!b'返回]\n歌单ID> ")
+                if playlist == "!b":
+                    continue
                 getNeteasePlaylistM1(playlist)
             except Exception:
                 logger.error("错误的，无法解析的歌单ID。请检查(还有一种可能是node服务没有启动或出现了问题)")
@@ -1046,7 +1064,9 @@ if __name__ == '__main__':
             runNodeApi()
             temp_music_type = music
             try:
-                playlist = input("(MODE2) 歌单ID> ")
+                playlist = input("(MODE2)(Netease) [输入'!b'返回]\n歌单ID> ")
+                if playlist == "!b":
+                    continue
                 getNeteasePlaylistM2(playlist)
             except Exception:
                 logger.error("错误的，无法解析的歌单ID。请检查")
@@ -1058,7 +1078,9 @@ if __name__ == '__main__':
             runNodeApi(type="qq")
             temp_music_type = music
             try:
-                playlist = input("(MODE1)(QQ) 歌单ID> ")
+                playlist = input("(MODE1)(QQ) [输入'!b'返回]\n歌单ID> ")
+                if playlist == "!b":
+                    continue
                 getQQMusicPlaylistM1(playlist)
             except Exception:
                 logger.error("错误的，无法解析的歌单ID。请检查")
@@ -1070,7 +1092,9 @@ if __name__ == '__main__':
             runNodeApi(type="qq")
             temp_music_type = music
             try:
-                playlist = input("(MODE2)(QQ) 歌单ID> ")
+                playlist = input("(MODE2)(QQ) [输入'!b'返回]\n歌单ID> ")
+                if playlist == "!b":
+                    continue
                 getQQMusicPlaylistM2(playlist)
             except Exception:
                 logger.error("错误的，无法解析的歌单ID。请检查")
@@ -1118,6 +1142,7 @@ if __name__ == '__main__':
 
         INDEX_MAX = len(songs_data)
 
+        clear()
         logger.info(title="Done", info="歌曲列表加载完成。使用上下键选择歌曲，回车下载。")
         try:
             if SelectStyle == 0:
@@ -1127,7 +1152,11 @@ if __name__ == '__main__':
             else:
                 SelectStyle0()
 
-            logger.info(title="Done", info="歌曲下载完成...")
+            if not flag_back:
+                logger.info(title="Done", info="歌曲下载完成...")
+            else:
+                clear()
+                logger.info(title="Done", info="用户取消操作...")
         except Exception as e:
             logger.error(
                 "在选择/下载歌曲时发生了错误，请检查网络连接。若持续出现此错误，则有可能是对方的API服务器出现了故障或是反爬手段增强了。请关注最新动态")
