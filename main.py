@@ -398,11 +398,13 @@ class Music:
     @staticmethod
     def get_song_url_netease1(song_id):
         req = requests.get(NODE_API + "/song/download/url?id=" + song_id, cookies=cookies_wy).text
+        logger.debug(req)
         return json.loads(req)["data"]["url"]
 
     @staticmethod
     def get_song_url_netease2(song_id, _level):
-        req = requests.get(NODE_API + f"/song/url/v1?id={song_id}&level={_level}").text
+        req = requests.get(NODE_API + f"/song/url/v1?id={song_id}&level={_level}", cookies=cookies_wy).text
+        logger.debug(req)
         return json.loads(req)["data"][0]["url"]
 
 
@@ -1002,7 +1004,7 @@ def loginNetease():
         check_res = json.loads(requests.get(check_url).text)
         if check_res["code"] == 803:
             cookies_wy = check_res["cookie"]
-            with open("cookies_netease.txt", "w") as f:
+            with open("dist/cookies_netease.txt", "w") as f:
                 f.write(cookies_wy)
             logger.info("授权登陆成功，已成功写入网易云cookies。")
             cookies_wy = convert_cookies_to_dict(cookies_wy)
@@ -1176,8 +1178,8 @@ if __name__ == '__main__':
     logger.info(title="Starting", info="正在初始化程序，这可能需要一些时间来获取数据。")
     music = Music()
     cookies = {}
-    if os.path.exists("cookies_netease.txt"):
-        f = open("cookies_netease.txt", "r")
+    if os.path.exists("dist/cookies_netease.txt"):
+        f = open("dist/cookies_netease.txt", "r")
         cookies_wy = convert_cookies_to_dict(f.read())
         f.close()
         logger.info("解析网易云cookies成功，已自动登录。")
