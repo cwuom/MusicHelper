@@ -47,6 +47,7 @@ playing_song_name = ""
 playing = False
 should_wait_enter = True
 flag_back = False
+scrobble_flag = False
 
 MB = 1024 ** 2
 
@@ -1033,6 +1034,7 @@ def output_help_list():
           "$#pld-qq-1# - 使用歌单批量下载，模式1(不稳定，同上)\n"
           "$#pld-qq-2# - 使用歌单批量下载，模式2(速度快，同时会频繁掉歌)\n"
           "$#login-wy# - 登录网易云账号，pld-wy-2下载歌单时将用自己的cookies\n"
+          "$#scr-wy# - 自动刷单曲听歌量，需要先登录($#login-wy#)，如果没有生效很有可能是cookies掉了，重新登录就行了\n"
           "$#about# - 查看项目信息\n"
           "$#faq# - 查看常见问题")
 
@@ -1134,6 +1136,40 @@ def get_songs_netease_m2(song_id):
     save_music(url, musicname, singername)
 
 
+def wait_esc_scrobble():
+    global scrobble_flag
+    keyboard.wait("esc")
+    scrobble_flag = True
+
+
+def scrobble_netease(_song_id):
+    global scrobble_flag
+
+    data = get_netease_song_info(_song_id)
+    song_detail = requests.get(NODE_API + f"/song/detail?ids={_song_id}", cookies=cookies, headers=headers)
+    dt = json.loads(song_detail.text)
+    dt = dt["songs"]
+    dt = dt[0]["dt"]
+    dt = str(dt)[0:3]
+    logger.info(f"歌曲时间(s)->{dt}")
+    musicname = data["musicname"]
+    singername = data["singername"]
+
+    print("歌曲名称:", musicname)
+    print("歌手:", singername)
+    input("若无误，按下回车开始刷歌曲播放... 按下esc随时停止。")
+
+    num = 0
+    Thread(target=wait_esc_scrobble, args=()).start()
+    while not scrobble_flag:
+        num += 1
+        req = requests.get(f"{NODE_API}/scrobble?id={_song_id}&time={dt}&timestamp={get_timerstamp()}",
+                           cookies=cookies_wy).text
+        logger.info(title=f"requests{num}", info=req)
+
+    scrobble_flag = False
+
+
 if __name__ == '__main__':
     refresh_ua()
     logger = Logger()
@@ -1146,7 +1182,7 @@ if __name__ == '__main__':
         f.close()
         logger.info("解析网易云cookies成功，已自动登录。")
     else:
-        logger.info("未检测到网易云cookies，歌单解析($#pld-wy-2#)将以受限模式运行。使用'$#login-wy#'来授权。")
+        logger.info("未检测到网易云cookies，部分解析功能将以受限模式运行。使用'$#login-wy#'来授权。")
 
     # 读取配置文件
     if not os.path.exists("config.ini"):
@@ -1257,6 +1293,18 @@ if __name__ == '__main__':
             except Exception:
                 logger.error("登录失败，在登录时遇到了错误，请检查网络连接或是API服务是否被关闭。")
 
+        if song_name == "$#scr-wy#":
+            runNodeApi()
+            try:
+                song_id = input("歌曲ID&URL(`!b`退出)> ")
+                if song_id == "!b":
+                    continue
+                song_id = search_mid(song_id)
+                scrobble_netease(song_id)
+            except Exception:
+                logger.error("出错了，请检查网络连接或是API服务是否被关闭并确保输入内容是合法的。")
+                continue
+
         if song_name == "$#faq#":
             print("Q: 为什么下载的音乐有问题/无法搜索音乐/频繁报错/无法下载?\nA: "
                   "本项目使用的是别人的API，可能是对方的API服务器反爬手段增强了或是对本程序做出了一些限制。又或是API服务器目前正出现故障，请关注最新动态或是过个几小时/一天再去使用。")
@@ -1275,8 +1323,10 @@ if __name__ == '__main__':
 
             mode = input(
                 "解析模式选择 \n(1) 获取客户端歌曲下载url (接口获取的是歌曲试听 url, 但存在部分歌曲在非 VIP 账号上可以下载无损音质而不能试听无损音质, 使用此接口可使非 VIP 账号获取这些歌曲的无损音频)\n"
-                "(2) 获取音乐url (默认，音质可选)\n(1/2)> ")
+                "(2) 获取音乐url (默认，音质可选)\n(`!b`退出) (1/2)> ")
 
+            if mode == "!b":
+                continue
             try:
                 runNodeApi()
                 if mode == "1":
