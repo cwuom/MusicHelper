@@ -110,8 +110,18 @@ $#qq#
 > 直接在序号输入处输入'!b'即可
 
 ### 歌单输入界面
-> 直接输入'!b'
+> 直接输入`!b`
 
+### 未分类
+> 同上，直接输入`!b`
+
+## 刷单曲播放量
+- 在搜索歌曲的地方输入`$#scr-wy#`即可进入刷单曲播放界面。
+- 等待API服务启动后，输入网易云单曲ID或链接进入刷播放模式。
+
+## 通过单曲链接直接解析
+- 在搜索歌曲的地方输入网易云单曲URL可直接进入解析详情。
+- 会有两种解析模式，在程序中都有标明其作用，此处不再赘述。
 
 # 配置文件说明
 ```ini
@@ -141,20 +151,25 @@ debug = False
 ### 网易云NodeAPI下载（node）
 来源: https://github.com/Binaryify/NeteaseCloudMusicApi
 > 这是打包好的下载地址，在终端输入*node app.js*即可直接运行(windows)
-
-> https://wwjj.lanzouw.com/ir3NA1ake1pc
+```
+https://wwjj.lanzouw.com/i6j4j1at9m6d  
+密码:cd2v
+```
 ### QQ音乐NodeAPI下载（nodeQQ）
 来源: https://github.com/jsososo/QQMusicApi
 > 这是打包好的下载地址，在终端输入*npm start*即可直接运行(windows)
-
-> https://wwjj.lanzouw.com/iyYaj1anz8mf
+```
+https://wwjj.lanzouw.com/iyYaj1anz8mf
+```
 
 ### 下载完成后和主程序放在同一目录。
 
 ## 音频预览所需文件
 ### vlc-3.0.6
 下载地址(密码:**fhrf**)
-> https://wwjj.lanzouw.com/iHlCi1ap290d
+```
+https://wwjj.lanzouw.com/iHlCi1ap290d
+```
 
 ## 注意事项
 - 本项目仅供学习和参考，请在72小时内删除此工具。
