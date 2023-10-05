@@ -1,4 +1,5 @@
 
+
 <h1 align="center">MusicHelper</h1>
 <div align="center">
 
@@ -171,6 +172,18 @@ https://wwjj.lanzouw.com/iyYaj1anz8mf
 ```
 https://wwjj.lanzouw.com/iHlCi1ap290d
 ```
+
+# FAQ
+## Q: 为什么下载出来的音频全都是试听版(30s)？
+### A: 请确保你已经扫码登录了网易云，如果登录了依旧还是试听版那么请确保你有网易云的VIP。如果你有VIP依旧无法解决上述问题，那么就可以尝试重新登录（也许是cookies掉了）。
+---
+## 初始化的时候出现 ``[ERROR - 21:00:32] HTTPSConnectionPool(host='ghxcx.lovestu.com', port=443): Max retries exceeded with url: /api/index/today_secret (Caused by ProxyError('Unable to connect to proxy', OSError(0, 'Error')))`` 之类的报错怎么办？
+### A: 请关闭全局梯子，或将梯子设为虚拟网卡模式(Service Mode)
+---
+## 我有其它问题
+### A： [Issues · cwuom/MusicHelper (github.com)](https://github.com/cwuom/MusicHelper/issues)
+
+---
 
 ## 注意事项
 - 本项目仅供学习和参考，请在72小时内删除此工具。
