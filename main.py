@@ -540,7 +540,8 @@ def SelectStyle1():
     """
     选择风格1，采用序号来选择歌曲，不会清屏。
     """
-    global song, INDEX
+    global song, INDEX, flag_back
+    flag = False
     index = 0
     for song in songs_data:
         index += 1
@@ -549,20 +550,28 @@ def SelectStyle1():
     while True:
         # noinspection PyBroadException
         try:
-            INDEX = int(input("请输入歌曲序号: "))
+            INDEX = input("请输入歌曲序号('!b'取消): ")
+            if INDEX == "!b":
+                flag_back = True
+                break
+            else:
+                INDEX = int(INDEX)
             song = songs_data[INDEX - 1]
+            flag = True
             break
         except Exception:
             logger.error(f"你认真的? {INDEX}不是一个有效的序号。")
             traceback.print_exc(file=open("error.txt", "a+"))
             continue
 
-    logger.info("正在解析歌曲下载链接... 请稍等")
-    music_url = music.get_song_url(song.song_id, cookies)["url"]
-    logger.info(title="Done", info=f"歌曲下载链接解析完成，url={music_url}")
-    makedirs("Songs")
+    if flag:
+        logger.info("正在解析歌曲下载链接... 请稍等")
+        music_url = music.get_song_url(song.song_id, cookies)["url"]
+        logger.info(title="Done", info=f"歌曲下载链接解析完成，url={music_url}")
+        makedirs("Songs")
+        flag_back = False
 
-    match_music_type(music_url, song)
+        match_music_type(music_url, song)
 
 
 log_file = open("UncaughtException.txt", "a+")
