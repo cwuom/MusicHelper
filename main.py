@@ -17,6 +17,7 @@ from base64 import b64decode
 from random import randint, choice
 from threading import Thread
 
+import pwinput
 import pyqrcode
 import requests
 import keyboard
@@ -449,7 +450,7 @@ def hook_keys(x):
 
     if x.event_type == 'down' and x.name == 'left' and playing:
         player.set_time(player.get_time() - 1000)
-    if x.event_type == 'down' and x.name == 'right'and playing:
+    if x.event_type == 'down' and x.name == 'right' and playing:
         player.set_time(player.get_time() + 1000)
     if x.event_type == 'down' and x.name == 'up' and not playing:
         clear()
@@ -605,9 +606,6 @@ def SelectStyle1():
         match_music_type(music_url, song)
 
 
-log_file = open("UncaughtException.txt", "a+")
-
-
 def refresh_ua():
     global request_headers
     # request_headers["User-Agent"] = choice(user_agent_list)
@@ -629,6 +627,7 @@ def handle_exception(exc_type, exc_value, exc_traceback):
 
 
 if DEBUG_MODE:
+    log_file = open("UncaughtException.txt", "a+")
     sys.excepthook = handle_exception
 
 
@@ -1015,6 +1014,52 @@ def loginNetease():
             break
 
 
+def show_phone_number(phone):
+    string = phone[2:9]
+    return phone.replace(string, '*******')
+
+
+def loginNetease_phone():
+    global cookies_wy
+    while True:
+        phone_number = pwinput.pwinput(prompt='请输入你网易云绑定的手机号(直接输入Enter退出): ', mask='·')
+        if phone_number == '':
+            break
+        if len(phone_number) != 11 and type(phone_number) != int:
+            print("Invalid phone number, please try again.")
+            continue
+
+        if input(f"(y/*) 将发送验证码到 >{show_phone_number(phone_number)}< 确定吗? ") == "y":
+            logger.info(title="Sending", info=f"正在发送验证码到 {show_phone_number(phone_number)}")
+            req_send = requests.get(f"{NODE_API}/captcha/sent?phone={phone_number}&timestamp={get_timerstamp()}")
+            logger.debug(req_send.text)
+            while True:
+                code = input("验证码(`!b`退出)> ")
+                if code == "!b":
+                    break
+                req_verify = requests.get(
+                    f"{NODE_API}/captcha/verify?phone={phone_number}&captcha={code}&timestamp={get_timerstamp()}").json()
+                if req_verify["code"] == 200:
+                    logger.info(title="OK", info=f"验证成功，正在抓取cookies.")
+                    break
+                else:
+                    logger.error("验证码校验失败，可能的原因是输入了不正确的验证码或是验证码过期，请重新输入。")
+
+            req_login = requests.get(
+                f"{NODE_API}/login/cellphone?phone={phone_number}&captcha={code}&timestamp={get_timerstamp()}")
+            logger.info(title="Done", info=f"验证码登录成功，用户昵称: {req_login.json()['profile']['nickname']}")
+            cookies_wy = req_login.json()["cookie"]
+            logger.debug(cookies_wy)
+            with open("cookies_netease.txt", "w") as f:
+                f.write(cookies_wy)
+
+            cookies_wy = convert_cookies_to_dict(cookies_wy)
+
+            break
+        else:
+            continue
+
+
 def convert_cookies_to_dict(_cookies):
     cookies_d = {}
     for line in _cookies.split(';'):
@@ -1036,6 +1081,7 @@ def output_help_list():
           "$#pld-qq-1# - 使用歌单批量下载，模式1(不稳定，同上)\n"
           "$#pld-qq-2# - 使用歌单批量下载，模式2(速度快，同时会频繁掉歌)\n"
           "$#login-wy# - 登录网易云账号，pld-wy-2下载歌单时将用自己的cookies\n"
+          "$#login-wy-p# - 通过验证码登录到网易云账号，pld-wy-2下载歌单时将用自己的cookies\n"
           "$#scr-wy# - 自动刷单曲听歌量，需要先登录($#login-wy#)，如果没有生效很有可能是cookies掉了，重新登录就行了\n"
           "$#lrc-wy# - 爬取网易云单曲歌词(包含原版歌词和中文翻译)\n"
           "$#about# - 查看项目信息\n"
@@ -1198,8 +1244,8 @@ if __name__ == '__main__':
     logger.info(title="Starting", info="正在初始化程序，这可能需要一些时间来获取数据。")
     music = Music()
     cookies = {}
-    if os.path.exists("dist/cookies_netease.txt"):
-        f = open("dist/cookies_netease.txt", "r")
+    if os.path.exists("cookies_netease.txt"):
+        f = open("cookies_netease.txt", "r")
         cookies_wy = convert_cookies_to_dict(f.read())
         f.close()
         logger.info("解析网易云cookies成功，已自动登录。")
@@ -1312,6 +1358,14 @@ if __name__ == '__main__':
             runNodeApi()
             try:
                 loginNetease()
+            except Exception:
+                traceback.print_exc(file=open("error.txt", "a+"))
+                logger.error("登录失败，在登录时遇到了错误，请检查网络连接或是API服务是否被关闭。")
+
+        if song_name == "$#login-wy-p#":
+            runNodeApi()
+            try:
+                loginNetease_phone()
             except Exception:
                 traceback.print_exc(file=open("error.txt", "a+"))
                 logger.error("登录失败，在登录时遇到了错误，请检查网络连接或是API服务是否被关闭。")
