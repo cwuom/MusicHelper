@@ -1004,7 +1004,7 @@ def loginNetease():
         check_res = json.loads(requests.get(check_url).text)
         if check_res["code"] == 803:
             cookies_wy = check_res["cookie"]
-            with open("dist/cookies_netease.txt", "w") as f:
+            with open("cookies_netease.txt", "w") as f:
                 f.write(cookies_wy)
             logger.info("授权登陆成功，已成功写入网易云cookies。")
             cookies_wy = convert_cookies_to_dict(cookies_wy)
@@ -1313,6 +1313,7 @@ if __name__ == '__main__':
             try:
                 loginNetease()
             except Exception:
+                traceback.print_exc(file=open("error.txt", "a+"))
                 logger.error("登录失败，在登录时遇到了错误，请检查网络连接或是API服务是否被关闭。")
 
         if song_name == "$#scr-wy#":
