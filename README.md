@@ -180,8 +180,10 @@ https://wwjj.lanzouw.com/iHlCi1ap290d
 ## Q: 为什么下载出来的音频全都是试听版(30s)？
 ### A: 请确保你已经扫码登录了网易云，如果登录了依旧还是试听版那么请确保你有网易云的VIP。如果你有VIP依旧无法解决上述问题，那么就可以尝试重新登录（也许是cookies掉了）。
 ---
-## 初始化的时候出现 ``[ERROR - 21:00:32] HTTPSConnectionPool(host='ghxcx.lovestu.com', port=443): Max retries exceeded with url: /api/index/today_secret (Caused by ProxyError('Unable to connect to proxy', OSError(0, 'Error')))`` 之类的报错怎么办？
+## Q: 初始化的时候出现 ``[ERROR - 21:00:32] HTTPSConnectionPool(host='ghxcx.lovestu.com', port=443): Max retries exceeded with url: /api/index/today_secret (Caused by ProxyError('Unable to connect to proxy', OSError(0, 'Error')))`` 之类的报错怎么办？
 ### A: 请关闭全局梯子或将梯子设为虚拟网卡模式(Service Mode)
+## Q: 解析歌曲的时候出现``无法匹配http://mobileoc.music.tc.qq.com/的文件类型，因为他不受支持。``之类的报错怎么办？
+### A: API炸了，过段时间再解析试试吧。
 ---
 ## 我有其它问题
 ### A： [Issues · cwuom/MusicHelper (github.com)](https://github.com/cwuom/MusicHelper/issues)
