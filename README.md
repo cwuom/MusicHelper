@@ -40,7 +40,7 @@ cp "...\vlc-3.0.6\*" "vlc-3.0.6" -Recurse
 
 python main.py
 ```
-其中，例如"...\nodeQQ\*"、"...\node\*"、"...\vlc-3.0.6\*"需要自行去[这里](https://github.com/cwuom/MusicHelper#%E9%9F%B3%E9%A2%91%E9%A2%84%E8%A7%88%E6%89%80%E9%9C%80%E6%96%87%E4%BB%B6)下载，
+其中，例如"...\nodeQQ\*"、"...\node\*"、"...\vlc-3.0.6\*"需要自行去[这里](https://github.com/cwuom/MusicHelper#%E9%99%84%E5%8A%A0%E7%BB%84%E4%BB%B6%E4%B8%8B%E8%BD%BD%EF%B8%8F)下载，
 ```
 并将"..."替换成绝对路径地址。
 例如"...\nodeQQ\*"替换成 ”C:\Users\cwuom\Downloads\nodeQQ\*"
