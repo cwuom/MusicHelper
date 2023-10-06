@@ -447,9 +447,9 @@ def hook_keys(x):
     """
     global INDEX, INDEX_MAX, INDEX_MIN
 
-    if x.event_type == 'down' and x.name == 'left':
+    if x.event_type == 'down' and x.name == 'left' and playing:
         player.set_time(player.get_time() - 1000)
-    if x.event_type == 'down' and x.name == 'right':
+    if x.event_type == 'down' and x.name == 'right'and playing:
         player.set_time(player.get_time() + 1000)
     if x.event_type == 'down' and x.name == 'up' and not playing:
         clear()
@@ -1037,6 +1037,7 @@ def output_help_list():
           "$#pld-qq-2# - 使用歌单批量下载，模式2(速度快，同时会频繁掉歌)\n"
           "$#login-wy# - 登录网易云账号，pld-wy-2下载歌单时将用自己的cookies\n"
           "$#scr-wy# - 自动刷单曲听歌量，需要先登录($#login-wy#)，如果没有生效很有可能是cookies掉了，重新登录就行了\n"
+          "$#lrc-wy# - 爬取网易云单曲歌词(包含原版歌词和中文翻译)\n"
           "$#about# - 查看项目信息\n"
           "$#faq# - 查看常见问题")
 
@@ -1172,6 +1173,25 @@ def scrobble_netease(_song_id):
     scrobble_flag = False
 
 
+def get_lyric_netease(_song_id):
+    makedirs("lyric")
+    req_lrc = requests.get(f"{NODE_API}/lyric?id={_song_id}")
+
+    data = get_netease_song_info(_song_id)
+    musicname = data["musicname"]
+    singername = data["singername"]
+    lyric = req_lrc.json()["lrc"]["lyric"]
+    lyric_zh = req_lrc.json()["tlyric"]["lyric"]
+    with open(f"lyric/{musicname}-{singername}_lrc.txt", "w", encoding='utf-8') as f:
+        f.write(lyric)
+        f.close()
+    with open(f"lyric/{musicname}-{singername}_zh.txt", "w", encoding='utf-8') as f:
+        f.write(lyric_zh)
+        f.close()
+
+    logger.info(title="Done", info=f"歌词已保存至lyric文件夹")
+
+
 if __name__ == '__main__':
     refresh_ua()
     logger = Logger()
@@ -1205,9 +1225,9 @@ if __name__ == '__main__':
         cookies = music.get_cookies(code)
         logger.info(title="Done", info=f"获取cookies成功。cookies={cookies}，初始化完成。")
 
-        print("===============================")
+        print("".center(50 // 2, "="))
         output_help_list()
-        print("===============================\n")
+        print("".center(50 // 2, "="))
     except Exception as e:
         logger.error(
             "在初始化程序时发生了错误，请检查网络连接。若持续出现此错误，则有可能是对方的API服务器出现了故障或是反爬手段增强了。请关注最新动态")
@@ -1303,6 +1323,18 @@ if __name__ == '__main__':
                     continue
                 song_id = search_mid(song_id)
                 scrobble_netease(song_id)
+            except Exception:
+                logger.error("出错了，请检查网络连接或是API服务是否被关闭并确保输入内容是合法的。")
+                continue
+
+        if song_name == "$#lrc-wy#":
+            runNodeApi()
+            try:
+                song_id = input("歌曲ID&URL(`!b`退出)> ")
+                if song_id == "!b":
+                    continue
+                song_id = search_mid(song_id)
+                get_lyric_netease(song_id)
             except Exception:
                 logger.error("出错了，请检查网络连接或是API服务是否被关闭并确保输入内容是合法的。")
                 continue
