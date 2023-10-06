@@ -27,8 +27,15 @@ import multitasking
 import signal
 from tqdm import tqdm
 
-os.environ['PYTHON_VLC_MODULE_PATH'] = "./vlc-3.0.6"  # 不要尝试更换顺序 此项需要在import vlc之前
-import vlc
+
+vlc_on = False
+
+if os.path.exists("vlc-3.0.6"):
+    os.environ['PYTHON_VLC_MODULE_PATH'] = "./vlc-3.0.6"  # 不要尝试更换顺序 此项需要在import vlc之前
+    import vlc
+    vlc_on = True
+else:
+    print("Warning: 未检测到vlc-3.0.6，歌曲预览功能将无法使用。")
 
 signal.signal(signal.SIGINT, multitasking.killall)
 
@@ -287,7 +294,8 @@ class Player:
         self.media.event_manager().event_detach(event_type, callback)
 
 
-player = Player()
+if vlc_on:
+    player = Player()
 
 
 # 歌曲结构体
@@ -464,7 +472,7 @@ def hook_keys(x):
             INDEX += 1
 
         show_result(INDEX)
-    if x.event_type == 'down' and x.name == 'space':
+    if x.event_type == 'down' and x.name == 'space' and vlc_on:
         if playing:
             if player.is_playing():
                 player.pause()
