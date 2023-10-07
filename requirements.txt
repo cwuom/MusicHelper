@@ -6,3 +6,4 @@ tqdm==4.24.0
 python-vlc
 requests~=2.18.4
 pwinput~=1.0.3
+colorama~=0.4.3
