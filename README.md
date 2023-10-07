@@ -1,7 +1,3 @@
-
-
-
-
 <h1 align="center">MusicHelper</h1>
 <div align="center">
 
@@ -217,6 +213,9 @@ https://wwjj.lanzouw.com/iHlCi1ap290d
 
 ## 有关打包程序被杀毒软件报毒的问题
 - 先说结论，这是**正常现象**。如果你用的是360那有很大的几率会报毒，而火绒却没有问题，我所用的打包命令是`pyinstaller -F main.py -p C:\ProgramData\anaconda3\envs\pyinstaller\Lib\site-packages`，并没有做任何其它处理，如果你不信任我可以直接自行编译源码或者重新打包。
+
+## 为何对QQ音乐支持这么少？
+- 首先是因为我本人不用QQ音乐对这个软件没有很深的了解，其次是腾讯的版权意识比较强。再者就是相关API文档也比较少，上手难度比网易云大得多，所以暂时不会做QQ音乐的相关开发。
 
 
 
