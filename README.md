@@ -142,13 +142,13 @@ url = https://music.ghxi.com/wp-admin/admin-ajax.php
 music_type = qq
 
 [SETTING]
-; 音乐选择模式 (0: 键盘选择; 1: 序号模式)
+; 音乐选择模式 (0: 键盘选择; 1: 序号模式)。
 select_style = 0
-; 命中提示字符(仅在select_style=0时有效)
+; 命中提示字符(仅在select_style=0时有效)。
 select_char = X
 ; DEBUG模式，反馈bug请将此处设为true(会拦截全局错误)。
 debug = False
-; 自动检测网易云登录cookies是否过期，没有node请不要开启
+; 自动检测网易云登录cookies是否过期，没有网易云node文件夹的情况下请不要开启，会直接无法启动。
 check_netease_cookies = False
 
 
