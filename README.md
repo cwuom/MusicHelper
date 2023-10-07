@@ -148,6 +148,8 @@ select_style = 0
 select_char = X
 ; DEBUG模式，反馈bug请将此处设为true(会拦截全局错误)。
 debug = False
+; 自动检测网易云登录cookies是否过期，没有node请不要开启
+check_netease_cookies = False
 
 
 ```
