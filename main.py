@@ -26,6 +26,7 @@ from subprocess import call
 import multitasking
 import signal
 from tqdm import tqdm
+from colorama import Fore, Back, Style
 
 vlc_on = False
 
@@ -35,7 +36,7 @@ if os.path.exists("vlc-3.0.6"):
 
     vlc_on = True
 else:
-    print("Warning: 未检测到vlc-3.0.6，歌曲预览功能将无法使用。")
+    print(Fore.YELLOW + "Warning: 未检测到vlc-3.0.6，歌曲预览功能将无法使用。")
 
 signal.signal(signal.SIGINT, multitasking.killall)
 
@@ -56,6 +57,7 @@ playing = False
 should_wait_enter = True
 flag_back = False
 scrobble_flag = False
+autocheck_cookies = False
 
 MB = 1024 ** 2
 
@@ -111,11 +113,11 @@ def write_cfg():
     config['SETTING'] = {
         "Select_Style": "0",
         "select_char": "X",
-        "DEBUG": False
+        "DEBUG": False,
+        "check_netease_cookies": False
     }
 
-    with open('config.ini', 'w') as f:
-        config.write(f)
+    config.write(open('config.ini', 'w'))
 
 
 # ========================== download_helper ==========================
@@ -325,18 +327,24 @@ class Logger:
     def __init__(self):
         self.time_now = None
 
-    def info(self, info, title="INFO"):
+    def info(self, info, title="INFO", color=""):
+        reset_print()
         self.time_now = time.strftime('%H:%M:%S', time.localtime())
-        print(f"[{self.time_now}] [{title}] {info}")
+        print(f"{color}[{self.time_now}] [{title}] {info}")
+        reset_print()
 
     def error(self, info):
+        reset_print()
         self.time_now = time.strftime('%H:%M:%S', time.localtime())
-        print(f"[ERROR - {self.time_now}] {info}")
+        print(f"{Fore.RED}[ERROR - {self.time_now}] {info}")
+        reset_print()
 
     def debug(self, info):
         if DEBUG_MODE:
+            reset_print()
             self.time_now = time.strftime('%H:%M:%S', time.localtime())
             print(f"[DEBUG - {self.time_now}] {info}")
+            reset_print()
 
 
 # 音乐检索/破解类
@@ -437,9 +445,10 @@ def show_result(_index):
     for _song in songs_data:
         index += 1
         if index == _index:
-            print(f"[{select_char}] {_song.song_name} - {_song.singer} [{_song.albumname}]")
+            print(f"{Back.BLUE}{Fore.BLACK}[{select_char}] {_song.song_name} - {_song.singer} [{_song.albumname}]")
         else:
             print(f"[ ] {_song.song_name} - {_song.singer} [{_song.albumname}]")
+        reset_print()
 
     print("\n按下回车开始下载... 显示不全请全屏终端程序。")
     print(
@@ -480,7 +489,7 @@ def hook_keys(x):
                 player.resume()
         else:
             _song = songs_data[INDEX - 1]
-            logger.info("正在解析歌曲下载链接... 请稍等")
+            logger.info(f"正在解析歌曲下载链接... 请稍等")
             music_url = music.get_song_url(_song.song_id, cookies)["url"]
             playing = True
             playing_song_name = _song.song_name + " - " + _song.singer
@@ -543,6 +552,7 @@ def match_music_type(music_url, _song):
 
 def SelectStyle0():
     global should_wait_enter
+    clear()
     """
     选择风格0，用上下键选择歌曲，会导致清屏。
     """
@@ -550,9 +560,11 @@ def SelectStyle0():
     for _song in songs_data:
         index += 1
         if index == INDEX:
-            print(f"[{select_char}] {_song.song_name} - {_song.singer} [{_song.albumname}]")
+            print(f"{Back.BLUE}{Fore.BLACK}[{select_char}] {_song.song_name} - {_song.singer} [{_song.albumname}]")
         else:
             print(f"[ ] {_song.song_name} - {_song.singer} [{_song.albumname}]")
+
+        reset_print()
 
     while True:
         keyboard.hook(hook_keys)
@@ -564,7 +576,7 @@ def SelectStyle0():
             break
         if not playing:
             _song = songs_data[INDEX - 1]
-            logger.info("正在解析歌曲下载链接... 请稍等")
+            logger.info(f"正在解析歌曲下载链接... 请稍等")
             music_url = music.get_song_url(_song.song_id, cookies)["url"]
             logger.info(title="Done", info=f"歌曲下载链接解析完成，url={music_url}")
             makedirs("Songs")
@@ -605,9 +617,9 @@ def SelectStyle1():
             continue
 
     if flag:
-        logger.info("正在解析歌曲下载链接... 请稍等")
+        logger.info(f"正在解析歌曲下载链接... 请稍等")
         music_url = music.get_song_url(song.song_id, cookies)["url"]
-        logger.info(title="Done", info=f"歌曲下载链接解析完成，url={music_url}")
+        logger.info(title="Done", info=f"{Fore.GREEN}歌曲下载链接解析完成，url={music_url}")
         makedirs("Songs")
         flag_back = False
 
@@ -621,6 +633,7 @@ def refresh_ua():
 
 
 def handle_exception(exc_type, exc_value, exc_traceback):
+    log_file = open("UncaughtException.txt", "a+")
     if issubclass(exc_type, KeyboardInterrupt):
         sys.__excepthook__(exc_type, exc_value, exc_traceback)
         return
@@ -634,9 +647,7 @@ def handle_exception(exc_type, exc_value, exc_traceback):
     time.sleep(10)
 
 
-if DEBUG_MODE:
-    log_file = open("UncaughtException.txt", "a+")
-    sys.excepthook = handle_exception
+sys.excepthook = handle_exception
 
 
 def save_music(url, music_name, singer_name):
@@ -661,7 +672,7 @@ def save_music(url, music_name, singer_name):
             music_response = requests.get(url, headers=headers).content
             with open(music_name, 'wb') as fp:
                 fp.write(music_response)
-                logger.info(title=music_name, info="保存成功！")
+                logger.info(title=music_name, info=f"{Fore.GREEN}保存成功！")
                 break
         except Exception:
             traceback.print_exc(file=open("error.txt", "a+"))
@@ -715,7 +726,7 @@ def getNeteasePlaylistM1(playlist_id):
                 logger.info(title="Getting", info=f"{_song.song_name} - {_song.singer[0]['name']}")
                 search_res[index] = _music.search(f"{_song.song_name} {_song.singer[0]['name']}", cookies)
                 var = search_res.get(index)[0]["data"]
-                logger.info(title="Done", info=f"{_song.song_name} - {_song.singer[0]['name']}")
+                logger.info(title="Done", info=f"{Fore.GREEN}{_song.song_name} - {_song.singer[0]['name']}")
                 index += 1
                 music_type = "wy"
                 break
@@ -787,7 +798,7 @@ def getNeteasePlaylistM1(playlist_id):
                 logger.error(f"获取歌曲链接失败，正在重试... x={x}/30")
                 continue
 
-    logger.info(title="Done", info="歌单歌曲下载完成!")
+    logger.info(title="Done", info=f"{Fore.GREEN}歌单歌曲下载完成!")
 
 
 def getNeteasePlaylistM2(playlist_id):
@@ -867,7 +878,7 @@ def getQQMusicPlaylistM1(playlist_id):
                 logger.info(title="Getting", info=f"{_song.al_name} - {_song.singer[0]['name']}")
                 search_res[index] = music.search(f"{_song.al_name} {_song.singer[0]['name']}", cookies)
                 var = search_res.get(index)[0]["data"]
-                logger.info(title="Done", info=f"{_song.song_name} - {_song.singer[0]['name']}")
+                logger.info(title="Done", info=f"{Fore.GREEN}{_song.song_name} - {_song.singer[0]['name']}")
                 index += 1
                 music_type = "wy"
                 break
@@ -1013,7 +1024,7 @@ def loginNetease():
             cookies_wy = check_res["cookie"]
             with open("cookies_netease.txt", "w") as f:
                 f.write(cookies_wy)
-            logger.info("授权登陆成功，已成功写入网易云cookies。")
+            logger.info(f"{Fore.GREEN}授权登陆成功，已成功写入网易云cookies。")
             cookies_wy = convert_cookies_to_dict(cookies_wy)
             break
 
@@ -1048,14 +1059,15 @@ def loginNetease_phone():
                 req_verify = requests.get(
                     f"{NODE_API}/captcha/verify?phone={phone_number}&captcha={code}&timestamp={get_timerstamp()}").json()
                 if req_verify["code"] == 200:
-                    logger.info(title="OK", info=f"验证成功，正在抓取cookies.")
+                    logger.info(title="OK", info=f"{Fore.GREEN}验证成功，正在抓取cookies.")
                     break
                 else:
                     logger.error("验证码校验失败，可能的原因是输入了不正确的验证码或是验证码过期，请重新输入。")
 
             req_login = requests.get(
                 f"{NODE_API}/login/cellphone?phone={phone_number}&captcha={code}&timestamp={get_timerstamp()}")
-            logger.info(title="Done", info=f"验证码登录成功，用户昵称: {req_login.json()['profile']['nickname']}")
+            logger.info(title="Done",
+                        info=f"{Fore.GREEN}验证码登录成功，用户昵称: {req_login.json()['profile']['nickname']}")
             cookies_wy = req_login.json()["cookie"]
             logger.debug(cookies_wy)
             with open("cookies_netease.txt", "w") as f:
@@ -1064,8 +1076,6 @@ def loginNetease_phone():
             cookies_wy = convert_cookies_to_dict(cookies_wy)
 
             break
-        else:
-            continue
 
 
 def convert_cookies_to_dict(_cookies):
@@ -1081,6 +1091,7 @@ def convert_cookies_to_dict(_cookies):
 
 
 def output_help_list():
+    # print(Fore.YELLOW, end="")
     print("平台切换指令\n"
           "$#wy# - 将搜索源切换成网易云音乐\n"
           "$#qq# - 将搜索源切换成QQ音乐\n\n其他指令\n"
@@ -1090,10 +1101,13 @@ def output_help_list():
           "$#pld-qq-2# - 使用歌单批量下载，模式2(速度快，同时会频繁掉歌)\n"
           "$#login-wy# - 登录网易云账号，pld-wy-2下载歌单时将用自己的cookies\n"
           "$#login-wy-p# - 通过验证码登录到网易云账号，pld-wy-2下载歌单时将用自己的cookies\n"
+          "$#check-wy# - 验证网易云登录cookies的有效性\n"
           "$#scr-wy# - 自动刷单曲听歌量，需要先登录($#login-wy#)，如果没有生效很有可能是cookies掉了，重新登录就行了\n"
           "$#lrc-wy# - 爬取网易云单曲歌词(包含原版歌词和中文翻译)\n"
           "$#about# - 查看项目信息\n"
           "$#faq# - 查看常见问题")
+
+    reset_print()
 
 
 def player_call_back(event):
@@ -1247,8 +1261,38 @@ def get_lyric_netease(_song_id):
 
 
 def check_netease_cookies():
+    runNodeApi()
     check_req = requests.get(f"{NODE_API}/daily_signin", cookies=cookies_wy)
-    return check_req.json()["code"]
+    if check_req.json()["code"] == 200:
+        logger.info(title="Success", info=F"{Fore.GREEN}网易云cookies验证成功！")
+    else:
+        logger.info(title="Warning", info="您的网易云cookies已过期，请尝试重新登录以获取最新cookies。",
+                    color=Fore.YELLOW)
+
+
+def reset_print():
+    print(Style.RESET_ALL, end="")
+
+
+def read_cfg():
+    global API_URL, music_type, DEBUG_MODE, SelectStyle, select_char, autocheck_cookies, config
+    if not os.path.exists("config.ini"):
+        write_cfg()
+        logger.info(f"{Fore.YELLOW}配置文件不存在，已自动创建。")
+    try:
+        config.read("config.ini")
+        API_URL = config["API"]["url"]
+        music_type = config["API"]["music_type"]
+        # DEBUG_MODE = config["SETTING"]["debug"]
+        DEBUG_MODE = config.getboolean("SETTING", "debug")
+        SelectStyle = int(config["SETTING"]["select_style"])
+        select_char = config["SETTING"]["select_char"]
+        # autocheck_cookies = bool(config["SETTING"]["check_netease_cookies"])
+        autocheck_cookies = config.getboolean("SETTING", "check_netease_cookies")
+    except Exception:
+        logger.error("配置文件读取错误，已自动重置配置文件。")
+        write_cfg()
+        read_cfg()
 
 
 if __name__ == '__main__':
@@ -1257,28 +1301,18 @@ if __name__ == '__main__':
     logger.info(title="Starting", info="正在初始化程序，这可能需要一些时间来获取数据。")
     music = Music()
     cookies = {}
+    # 读取配置文件
+    read_cfg()
+
     if os.path.exists("cookies_netease.txt"):
         f = open("cookies_netease.txt", "r")
         cookies_wy = convert_cookies_to_dict(f.read())
         f.close()
-        logger.info("解析网易云cookies成功，正在验证cookies有效性...")
-        if check_netease_cookies() == 200:
-            logger.info(title="success", info="网易云cookies验证成功！")
-        else:
-            logger.info(title="Warning", info="您的网易云cookies已过期，请尝试重新登录以获取最新cookies。")
+        if autocheck_cookies:
+            logger.info("解析网易云cookies成功，正在验证cookies有效性...")
+            check_netease_cookies()
     else:
         logger.info("未检测到网易云cookies，部分解析功能将以受限模式运行。使用'$#login-wy#'来授权。")
-
-    # 读取配置文件
-    if not os.path.exists("config.ini"):
-        write_cfg()
-        logger.info("配置文件不存在，已自动创建。")
-    config.read("config.ini")
-    API_URL = config["API"]["url"]
-    music_type = config["API"]["music_type"]
-    DEBUG_MODE = bool(config["SETTING"]["debug"])
-    SelectStyle = int(config["SETTING"]["select_style"])
-    select_char = config["SETTING"]["select_char"]
 
     logger.info(f"当前平台: {music_type}, 可在歌曲输入框使用'$#help#'查看帮助。")
 
@@ -1306,13 +1340,13 @@ if __name__ == '__main__':
             config.set('API', 'music_type', 'wy')
             with open('config.ini', 'w') as configfile:
                 config.write(configfile)
-            logger.info("成功将检索源切换为网易云音乐。")
+            logger.info(f"{Fore.GREEN}成功将检索源切换为{Fore.RED}网易云音乐{Style.RESET_ALL}。")
         if song_name == "$#qq#":
             music_type = "qq"
             config.set('API', 'music_type', 'qq')
             with open('config.ini', 'w') as configfile:
                 config.write(configfile)
-            logger.info("成功将检索源切换为QQ音乐。")
+            logger.info(f"{Fore.GREEN}成功将检索源切换为{Fore.YELLOW}QQ音乐{Style.RESET_ALL}。")
         if song_name == "$#about#":
             print("作者: @im-cwuom | 仅供学习交流使用，请在72小时内删除本程序。")
 
@@ -1378,6 +1412,9 @@ if __name__ == '__main__':
             except Exception:
                 traceback.print_exc(file=open("error.txt", "a+"))
                 logger.error("登录失败，在登录时遇到了错误，请检查网络连接或是API服务是否被关闭。")
+
+        if song_name == "$#check-wy#":
+            check_netease_cookies()
 
         if song_name == "$#login-wy-p#":
             runNodeApi()
@@ -1456,8 +1493,11 @@ if __name__ == '__main__':
         search_result = music.search(song_name, _cookies=cookies)[0]
         songs_data = []
         # noinspection PyBroadException
+        n = 0
         try:
             for song in search_result["data"]:
+                if n >= 35:
+                    break
                 song_struct = SongStruct()
                 song_struct.song_name = song["songname"]
                 song_struct.singer = song["singer"]
@@ -1468,6 +1508,7 @@ if __name__ == '__main__':
                 song_struct.size320 = song["size320"]
                 song_struct.size_flac = song["sizeflac"]
                 songs_data.append(song_struct)
+                n += 1
         except Exception:
             logger.error(songs_data)
             logger.error("无法解析音乐数据，API服务器可能出现了故障，请稍后重试。")
@@ -1487,10 +1528,10 @@ if __name__ == '__main__':
                 SelectStyle0()
 
             if not flag_back:
-                logger.info(title="Done", info="歌曲下载完成...")
+                logger.info(title="Done", info=f"{Fore.GREEN}歌曲下载完成...")
             else:
                 clear()
-                logger.info(title="Done", info="用户取消操作...")
+                logger.info(title="Done", info=f"{Fore.RED}用户取消操作...")
         except Exception as e:
             logger.error(
                 "在选择/下载歌曲时发生了错误，请检查网络连接。若持续出现此错误，则有可能是对方的API服务器出现了故障或是反爬手段增强了。请关注最新动态")
