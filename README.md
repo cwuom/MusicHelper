@@ -1,6 +1,7 @@
 
 
 
+
 <h1 align="center">MusicHelper</h1>
 <div align="center">
 
@@ -132,6 +133,10 @@ $#qq#
 ## 通过单曲链接直接解析并下载双语歌词
 - 在搜索歌曲的地方输入``$#lrc-wy#``
 - 直接输入网易云单曲链接或单曲URL即可
+
+## 将`Songs`/`Songs_nodeapi`文件夹内的音频文件转换为mp3
+- 在搜索歌曲的地方输入``$#flac2mp3#``
+- 输入需要转换的音频文件所在的文件夹名称即可
 
 # 配置文件(config.ini)说明📃
 ```ini
