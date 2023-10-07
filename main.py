@@ -27,12 +27,12 @@ import multitasking
 import signal
 from tqdm import tqdm
 
-
 vlc_on = False
 
 if os.path.exists("vlc-3.0.6"):
     os.environ['PYTHON_VLC_MODULE_PATH'] = "./vlc-3.0.6"  # 不要尝试更换顺序 此项需要在import vlc之前
     import vlc
+
     vlc_on = True
 else:
     print("Warning: 未检测到vlc-3.0.6，歌曲预览功能将无法使用。")
@@ -1246,6 +1246,11 @@ def get_lyric_netease(_song_id):
     logger.info(title="Done", info=f"歌词已保存至lyric文件夹")
 
 
+def check_netease_cookies():
+    check_req = requests.get(f"{NODE_API}/daily_signin", cookies=cookies_wy)
+    return check_req.json()["code"]
+
+
 if __name__ == '__main__':
     refresh_ua()
     logger = Logger()
@@ -1256,7 +1261,11 @@ if __name__ == '__main__':
         f = open("cookies_netease.txt", "r")
         cookies_wy = convert_cookies_to_dict(f.read())
         f.close()
-        logger.info("解析网易云cookies成功，已自动登录。")
+        logger.info("解析网易云cookies成功，正在验证cookies有效性...")
+        if check_netease_cookies() == 200:
+            logger.info(title="success", info="网易云cookies验证成功！")
+        else:
+            logger.info(title="Warning", info="您的网易云cookies已过期，请尝试重新登录以获取最新cookies。")
     else:
         logger.info("未检测到网易云cookies，部分解析功能将以受限模式运行。使用'$#login-wy#'来授权。")
 
