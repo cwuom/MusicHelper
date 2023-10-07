@@ -17,12 +17,13 @@ from base64 import b64decode
 from random import randint, choice
 from threading import Thread
 
+import imageio_ffmpeg
 import pwinput
 import pyqrcode
 import requests
 import keyboard
 
-from subprocess import call
+from subprocess import call, Popen
 import multitasking
 import signal
 from tqdm import tqdm
@@ -1102,6 +1103,7 @@ def output_help_list():
           "$#login-wy# - 登录网易云账号，pld-wy-2下载歌单时将用自己的cookies\n"
           "$#login-wy-p# - 通过验证码登录到网易云账号，pld-wy-2下载歌单时将用自己的cookies\n"
           "$#check-wy# - 验证网易云登录cookies的有效性\n"
+          "$#flac2mp3# - 自动转换Songs/Songs_nodeapi里的音乐为mp3\n"
           "$#scr-wy# - 自动刷单曲听歌量，需要先登录($#login-wy#)，如果没有生效很有可能是cookies掉了，重新登录就行了\n"
           "$#lrc-wy# - 爬取网易云单曲歌词(包含原版歌词和中文翻译)\n"
           "$#about# - 查看项目信息\n"
@@ -1295,6 +1297,22 @@ def read_cfg():
         read_cfg()
 
 
+def findAllFile(_base):
+    for root, ds, fs in os.walk(_base):
+        for _f in fs:
+            yield _f
+
+
+def flac2mp3(_base):
+    makedirs("convert_mp3")
+    for file_name in findAllFile(_base):
+        compress = """{} -i "{}/{}" "convert_mp3/{}.mp3" -y""".format(imageio_ffmpeg.get_ffmpeg_exe(), _base, file_name,
+                                                                      file_name.split('.')[0])
+        Popen(compress, shell=True)
+
+    logger.info(f"{Fore.GREEN}已将{_base}目录下的音乐文件转换为mp3格式。")
+
+
 if __name__ == '__main__':
     refresh_ua()
     logger = Logger()
@@ -1447,6 +1465,19 @@ if __name__ == '__main__':
             except Exception:
                 logger.error("出错了，请检查网络连接或是API服务是否被关闭并确保输入内容是合法的。")
                 continue
+
+        if song_name == "$#flac2mp3#":
+            base = input("输入需要转换的文件所在的文件夹名称/路径(`!b`退出)> ")
+            if base == "!b":
+                continue
+            if not os.path.exists(base):
+                continue
+            if base != "Songs":
+                if base != "Songs_nodeapi":
+                    if input("您输入的文件夹名称不是`Songs`或`Songs_nodeapi`，是否继续？(y/*)> ") != "y":
+                        continue
+
+            flac2mp3(base)
 
         if song_name == "$#faq#":
             print("Q: 为什么下载的音乐有问题/无法搜索音乐/频繁报错/无法下载?\nA: "
