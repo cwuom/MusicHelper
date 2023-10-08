@@ -137,10 +137,17 @@ $#qq#
 # 配置文件(config.ini)说明📃
 ```ini
 [API]
-; API地址，一般无需改动
-url = https://music.ghxi.com/wp-admin/admin-ajax.php
-; 音乐检索平台
+; 是否使用测试版接口作为解析服务器(自己搭的API服务器，目前没有人用，理论上比旧的解析服务器要好)
+using_api_beta = True
+; 音乐检索平台，参数["wy", "qq"]
 music_type = qq
+; 解析服务器地址，仅在using_api_beta为True时有效
+api_url = http://music.cwuom.love:36775
+; 网易云歌曲下载质量，仅在using_api_beta为True时有效。参数["standard", "higher", "exhigh", "lossless", "hires", "jyeffect", "sky", "jymaster"]
+; standard => 标准,higher => 较高, exhigh=>极高, lossless=>无损, hires=>Hi-Res, jyeffect => 高清环绕声, sky => 沉浸环绕声, jymaster => 超清母带
+download_level_netease = hires
+; QQ音乐歌曲下载质量，仅在using_api_beta为True时有效。默认 flac // 128：mp3 128k，320：mp3 320k，m4a：m4a格式 128k，flac：flac格式 无损，ape：ape格式 无损
+download_level_qq = flac
 
 [SETTING]
 ; 音乐选择模式 (0: 键盘选择; 1: 序号模式)。
