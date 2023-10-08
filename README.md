@@ -226,7 +226,7 @@ https://wwjj.lanzouw.com/iHlCi1ap290d
 
 ----
 
-# 有关音乐接口β版(需将将using_api_beta改为True)
+# 有关音乐接口β版(需将using_api_beta改为True)
 此接口由我和我朋友([@ColdMoonBUG](https://github.com/ColdMoonBUG))的赞助下一同搭建，搭建这个接口本身需要一定的成本（要给腾讯和网易充钱）。请不要尝试攻击这个接口，它目前尚未进行过高压测试。
 如果你希望它活的久一点，你可以对我们进行[赞助](https://docs.qq.com/doc/DUWtXdWhWRFlOU0tP)，赞助所得的资金将应用于接口的进一步开发和升级。
 ## 已有解析节点
