@@ -14,6 +14,7 @@ import sys
 import time
 import traceback
 from base64 import b64decode
+from msvcrt import getwch
 from random import randint, choice
 from threading import Thread
 
@@ -44,6 +45,8 @@ signal.signal(signal.SIGINT, multitasking.killall)
 NODE_API = "http://localhost:3000"
 NODE_API_QQ = "http://localhost:3300"
 API_URL = "https://music.ghxi.com/wp-admin/admin-ajax.php"
+API_URL_2 = "http://music.cwuom.love:36775"
+using_api_beta = True
 DEBUG_MODE = True
 
 cookies_wy = {}
@@ -59,6 +62,9 @@ should_wait_enter = True
 flag_back = False
 scrobble_flag = False
 autocheck_cookies = False
+download_level_netease = "hires"
+download_level_qq = "flac"
+disable_keyboard_flag = True
 
 MB = 1024 ** 2
 
@@ -107,8 +113,11 @@ config = configparser.ConfigParser()
 
 def write_cfg():
     config["API"] = {
-        "url": "https://music.ghxi.com/wp-admin/admin-ajax.php",
-        "music_type": "qq"
+        "using_api_beta": True,
+        "music_type": "qq",
+        "api_url": "http://music.cwuom.love:36775",
+        "download_level_netease": "hires",
+        "download_level_qq": "flac"
     }
 
     config['SETTING'] = {
@@ -136,7 +145,7 @@ def download(url: str, file_name: str):
             response = requests.get(url, headers=headers, stream=True)
             # 一块文件的大小
             chunk_size = 1024
-            bar = tqdm(total=file_size, desc=f'{file_name}')
+            bar = tqdm(total=file_size, desc=f'{file_name}', position=0, ncols=100, unit='B', unit_scale=True)
             with open(file_name, mode='wb') as f:
                 # 写入分块文件
                 for chunk in response.iter_content(chunk_size=chunk_size):
@@ -369,6 +378,32 @@ class Music:
         return [json.loads(req.text), music_type]
 
     @staticmethod
+    def search_c(search_word):
+        if music_type == "wy":
+            req = requests.get(f"{API_URL_2}/wy/search/{search_word}")
+            # logger.debug(req.text)
+            return [json.loads(req.text), "wy"]
+        elif music_type == "qq":
+            return music.search_qq(search_word)
+        else:
+            return None
+
+    @staticmethod
+    def search_qq(search_word):
+        if music_type == "qq":
+            _headers = {
+                'Referer': 'https://y.qq.com',
+                'User-Agent': "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36 Edg/117.0.2045.60"
+            }
+            url = f"https://c.y.qq.com/soso/fcgi-bin/search_for_qq_cp?g_tk=5381&uin=0&format=jsonp&jsonpCallback=callback&inCharset=utf-8&outCharset=utf-8&notice=0&platform=h5&needNewCode=1&w={search_word}&zhidaqu=1&catZhida=1&t=0&flag=1&ie=utf-8&sem=1&aggr=0&perpage=35&n=20&p=1&remoteplace=txt.mqq.all&_=1512564562121"
+            req = requests.get(url, headers=_headers)
+            return [json.loads(req.text.replace("callback(", "")[:-1]), "qq"]
+        elif music_type == "wy":
+            return music.search_c(search_word)
+        else:
+            return None
+
+    @staticmethod
     def get_song_url(_song_id, _cookies, _music_type=""):
         """
         获取歌曲直链，返回结果不保证百分百正确。
@@ -389,6 +424,21 @@ class Music:
 
         req = requests.post(API_URL, data=data, headers=request_headers, cookies=_cookies)
         return json.loads(req.text)
+
+    @staticmethod
+    def get_song_url_c(_song_id, level=download_level_netease):
+        req = requests.get(f"{API_URL_2}/wy/get_song_url/{_song_id}/{level}")
+        return json.loads(req.text)["data"][0]
+
+    @staticmethod
+    def get_song_url_q(_song_id, level=download_level_qq):
+        req = requests.get(f"{API_URL_2}/qq/get_song_url/{_song_id}/{level}")
+        try:
+            return json.loads(req.text)["data"]
+        except Exception:
+            logger.error("获取flac格式文件失败，可能是此歌曲没有对应的无损格式。正在获取mp3格式文件...")
+            req = requests.get(f"{API_URL_2}/qq/get_song_url/{_song_id}/128")
+            return json.loads(req.text)["data"]
 
     @staticmethod
     def get_code():
@@ -426,6 +476,13 @@ class Music:
         return json.loads(req)["data"][0]["url"]
 
 
+def gotoxy(x, y):
+    if platform.system() == "Windows":
+        call(f"echo \033[{y};{x}H", shell=True)  # Windows终端下设置光标位置
+    else:
+        print(f"\033[{y};{x}H", end='', flush=True)  # 非Windows终端下设置光标位置
+
+
 def clear():
     """
     清屏，不兼容pycharm
@@ -436,6 +493,8 @@ def clear():
     else:
         os.system('clear')
 
+    gotoxy(0, 0)
+
 
 def show_result(_index):
     """
@@ -444,18 +503,36 @@ def show_result(_index):
     """
     index = 0
     for _song in songs_data:
+        reset_print()
         index += 1
         if index == _index:
             print(f"{Back.BLUE}{Fore.BLACK}[{select_char}] {_song.song_name} - {_song.singer} [{_song.albumname}]")
         else:
             print(f"[ ] {_song.song_name} - {_song.singer} [{_song.albumname}]")
-        reset_print()
+    reset_print()
 
-    print("\n按下回车开始下载... 显示不全请全屏终端程序。")
     print(
-        f"index: {_index}, "
+        f"\n{Fore.YELLOW}按下{Fore.RED}回车{Fore.YELLOW}开始下载，{Fore.RED}空格键{Fore.YELLOW}试听... 显示不全请全屏终端程序。{Style.RESET_ALL}")
+    print(
+        f"{Fore.GREEN}index:{_index}{Style.RESET_ALL} , "
         f"当前选择《{songs_data[_index - 1].song_name} - {songs_data[_index - 1].singer}"
-        f" [{songs_data[_index - 1].albumname}]》")
+        f" [{songs_data[_index - 1].albumname}]》                                                                      ")
+
+
+def match_music_url(_song, level=None):
+    if not using_api_beta:
+        return music.get_song_url(_song.song_id, cookies)["url"]
+    else:
+        if level is None:
+            if music_type == "wy":
+                return music.get_song_url_c(_song.song_id)["url"]
+            else:
+                return music.get_song_url_q(_song.song_id)
+        else:
+            if music_type == "wy":
+                return music.get_song_url_c(_song.song_id, level=level)["url"]
+            else:
+                return music.get_song_url_q(_song.song_id, level=level)["url"]
 
 
 def hook_keys(x):
@@ -471,13 +548,13 @@ def hook_keys(x):
     if x.event_type == 'down' and x.name == 'right' and playing:
         player.set_time(player.get_time() + 1000)
     if x.event_type == 'down' and x.name == 'up' and not playing:
-        clear()
+        gotoxy(0, 0)
         if INDEX > INDEX_MIN:
             INDEX -= 1
 
         show_result(INDEX)
     if x.event_type == 'down' and x.name == 'down' and not playing:
-        clear()
+        gotoxy(0, 0)
         if INDEX < INDEX_MAX:
             INDEX += 1
 
@@ -491,7 +568,10 @@ def hook_keys(x):
         else:
             _song = songs_data[INDEX - 1]
             logger.info(f"正在解析歌曲下载链接... 请稍等")
-            music_url = music.get_song_url(_song.song_id, cookies)["url"]
+            if music_type == "wy":
+                music_url = match_music_url(_song, level="standard")
+            else:
+                music_url = match_music_url(_song)
             playing = True
             playing_song_name = _song.song_name + " - " + _song.singer
             play(music_url)
@@ -533,6 +613,11 @@ def calc_divisional_range(filesize, chuck=10):
     return result
 
 
+def disable_keyboard_event():
+    while disable_keyboard_flag:
+        getwch()
+
+
 def match_music_type(music_url, _song):
     """
     判断音乐文件后缀类型
@@ -552,20 +637,13 @@ def match_music_type(music_url, _song):
 
 
 def SelectStyle0():
-    global should_wait_enter
-    clear()
     """
     选择风格0，用上下键选择歌曲，会导致清屏。
     """
-    index = 0
-    for _song in songs_data:
-        index += 1
-        if index == INDEX:
-            print(f"{Back.BLUE}{Fore.BLACK}[{select_char}] {_song.song_name} - {_song.singer} [{_song.albumname}]")
-        else:
-            print(f"[ ] {_song.song_name} - {_song.singer} [{_song.albumname}]")
 
-        reset_print()
+    global should_wait_enter
+    clear()
+    show_result(INDEX)
 
     while True:
         keyboard.hook(hook_keys)
@@ -578,7 +656,7 @@ def SelectStyle0():
         if not playing:
             _song = songs_data[INDEX - 1]
             logger.info(f"正在解析歌曲下载链接... 请稍等")
-            music_url = music.get_song_url(_song.song_id, cookies)["url"]
+            music_url = match_music_url(_song)
             logger.info(title="Done", info=f"歌曲下载链接解析完成，url={music_url}")
             makedirs("Songs")
             break
@@ -619,7 +697,7 @@ def SelectStyle1():
 
     if flag:
         logger.info(f"正在解析歌曲下载链接... 请稍等")
-        music_url = music.get_song_url(song.song_id, cookies)["url"]
+        music_url = match_music_url(song)
         logger.info(title="Done", info=f"{Fore.GREEN}歌曲下载链接解析完成，url={music_url}")
         makedirs("Songs")
         flag_back = False
@@ -694,6 +772,16 @@ def get_netease_song_info(_id):
     return {"musicname": musicname, "singername": singername}
 
 
+def get_qq_song_info(_id):
+    name = requests.get(NODE_API_QQ + "/song?songmid=" + str(_id),
+                        headers=headers).text
+    name = json.loads(name)
+    musicname = name["data"]["track_info"]["name"]
+    singername = name["data"]["track_info"]["singer"]
+    singername = singername[0]["name"]
+    return {"musicname": musicname, "singername": singername}
+
+
 def getNeteasePlaylistM1(playlist_id):
     global music_type
     playlist_id = search_plid(playlist_id)
@@ -701,105 +789,128 @@ def getNeteasePlaylistM1(playlist_id):
         logger.error(info="拉取歌单失败，请检查歌单URL是否包含歌单ID。")
         raise ValueError("歌单获取失败")
 
-    playlist_url = "http://localhost:3000/playlist/track/all?id=" + playlist_id
+    playlist_url = f"{NODE_API}/playlist/track/all?id=" + playlist_id + "&timestamp=" + get_timerstamp()
     pl_data = json.loads(requests.get(playlist_url).text)
     pl_data_songs = pl_data["songs"]
 
     pl_songs_data = []
+    id_list = []
     for _song in pl_data_songs:
         _song_struct = SongStruct_Playlist()
         _song_struct.song_name = _song["name"]
         _song_struct.singer = _song["ar"]
         _song_struct.al_name = _song["al"]["name"]
         pl_songs_data.append(_song_struct)
+        id_list.append(_song["id"])
 
-    _music = Music()
-    search_res = {}
+    if not using_api_beta:
+        search_res = {}
 
-    index = 0
-    for _song in pl_songs_data:
-        clear()
-        print("============================\n正在爬取歌单中的所有歌曲信息, 请稍等...")
-        print(f"进度: {index} / {len(pl_songs_data)}\n============================\n\n")
-        refresh_ua()
-        for x in range(30):
-            try:
-                logger.info(title="Getting", info=f"{_song.song_name} - {_song.singer[0]['name']}")
-                search_res[index] = _music.search(f"{_song.song_name} {_song.singer[0]['name']}", cookies)
-                var = search_res.get(index)[0]["data"]
-                logger.info(title="Done", info=f"{Fore.GREEN}{_song.song_name} - {_song.singer[0]['name']}")
-                index += 1
-                music_type = "wy"
-                break
-            except Exception:
-                traceback.print_exc(file=open("error.txt", "a+"))
-                logger.error(f"无法获取歌曲data对象，正在切换检索源并重试...  x={x}/30")
-                if music_type == "wy":
-                    music_type = "qq"
-                else:
+        index = 0
+        for _song in pl_songs_data:
+            clear()
+            print("============================\n正在爬取歌单中的所有歌曲信息, 请稍等...")
+            print(f"进度: {index} / {len(pl_songs_data)}\n============================\n\n")
+            refresh_ua()
+            for x in range(30):
+                try:
+                    logger.info(title="Getting", info=f"{_song.song_name} - {_song.singer[0]['name']}")
+                    search_res[index] = music.search(f"{_song.song_name} {_song.singer[0]['name']}", cookies)
+                    var = search_res.get(index)[0]["data"]
+                    logger.info(title="Done", info=f"{Fore.GREEN}{_song.song_name} - {_song.singer[0]['name']}")
+                    index += 1
                     music_type = "wy"
-                time.sleep(0.5)
-                continue
+                    break
+                except Exception:
+                    traceback.print_exc(file=open("error.txt", "a+"))
+                    logger.error(f"无法获取歌曲data对象，正在切换检索源并重试...  x={x}/30")
+                    if music_type == "wy":
+                        music_type = "qq"
+                    else:
+                        music_type = "wy"
+                    time.sleep(0.5)
+                    continue
 
-    logger.debug(search_res)
+        logger.debug(search_res)
 
-    song_data = []
-    for i in range(len(pl_songs_data)):
-        state = False
-        song_pl = pl_songs_data[i]
-        song_search = search_res.get(i)
-        for _song in song_search[0]["data"]:
-            _song_name = _song["songname"]
-            singer = _song["singer"]
-            albumname = _song["albumname"]
-            _song_struct = SongStruct()
-            _song_struct.song_name = _song["songname"]
-            _song_struct.singer = _song["singer"]
-            _song_struct.albumname = _song["albumname"]
-            _song_struct.album_img = _song["album_img"]
-            _song_struct.song_id = _song["songid"]
-            _song_struct.size128 = _song["size128"]
-            _song_struct.size320 = _song["size320"]
-            _song_struct.size_flac = _song["sizeflac"]
-            _song_struct.music_type = song_search[1]
-            if _song_name == song_pl.song_name and singer == song_pl.singer[0]['name'] and albumname == song_pl.al_name:
+        song_data = []
+        for i in range(len(pl_songs_data)):
+            state = False
+            song_pl = pl_songs_data[i]
+            song_search = search_res.get(i)
+            for _song in song_search[0]["data"]:
+                _song_name = _song["songname"]
+                singer = _song["singer"]
+                albumname = _song["albumname"]
+                _song_struct = SongStruct()
+                _song_struct.song_name = _song["songname"]
+                _song_struct.singer = _song["singer"]
+                _song_struct.albumname = _song["albumname"]
+                _song_struct.album_img = _song["album_img"]
+                _song_struct.song_id = _song["songid"]
+                _song_struct.size128 = _song["size128"]
+                _song_struct.size320 = _song["size320"]
+                _song_struct.size_flac = _song["sizeflac"]
+                _song_struct.music_type = song_search[1]
+                if _song_name == song_pl.song_name and singer == song_pl.singer[0][
+                    'name'] and albumname == song_pl.al_name:
+                    song_data.append(_song_struct)
+                    state = True
+                    break
+
+            if not state:
+                _song = song_search[0]["data"][0]
+                _song_struct = SongStruct()
+                _song_struct.song_name = _song["songname"]
+                _song_struct.singer = _song["singer"]
+                _song_struct.albumname = _song["albumname"]
+                _song_struct.album_img = _song["album_img"]
+                _song_struct.song_id = _song["songid"]
+                _song_struct.size128 = _song["size128"]
+                _song_struct.size320 = _song["size320"]
+                _song_struct.size_flac = _song["sizeflac"]
+                _song_struct.music_type = song_search[1]
+                logger.error(
+                    f"无法通过当前信息命中目标歌曲，已将《{_song_struct.song_name}》命中结果设为默认（搜索排行第一名）。")
                 song_data.append(_song_struct)
-                state = True
-                break
 
-        if not state:
-            _song = song_search[0]["data"][0]
-            _song_struct = SongStruct()
-            _song_struct.song_name = _song["songname"]
-            _song_struct.singer = _song["singer"]
-            _song_struct.albumname = _song["albumname"]
-            _song_struct.album_img = _song["album_img"]
-            _song_struct.song_id = _song["songid"]
-            _song_struct.size128 = _song["size128"]
-            _song_struct.size320 = _song["size320"]
-            _song_struct.size_flac = _song["sizeflac"]
-            _song_struct.music_type = song_search[1]
-            logger.error(
-                f"无法通过当前信息命中目标歌曲，已将《{_song_struct.song_name}》命中结果设为默认（搜索排行第一名）。")
-            song_data.append(_song_struct)
+        makedirs("Songs")
+        for _song in song_data:
+            logger.info(title="GetLink", info=_song.song_name)
+            for x in range(30):
+                try:
+                    logger.debug("song.music_type=" + _song.music_type)
+                    download_url = match_music_url(_song)
+                    logger.debug(download_url)
+                    download_url.find("test")
+                    logger.info(title="Downloading", info=_song.song_name)
+                    match_music_type(download_url, _song)
+                    break
+                except Exception:
+                    logger.error(f"获取歌曲链接失败，正在重试... x={x}/30")
+                    continue
 
-    makedirs("Songs")
-    for _song in song_data:
-        logger.info(title="GetLink", info=_song.song_name)
-        for x in range(30):
-            try:
-                logger.debug("song.music_type=" + _song.music_type)
-                download_url = _music.get_song_url(_song.song_id, cookies, _song.music_type)["url"]
-                logger.debug(download_url)
-                download_url.find("test")
-                logger.info(title="Downloading", info=_song.song_name)
-                match_music_type(download_url, _song)
-                break
-            except Exception:
-                logger.error(f"获取歌曲链接失败，正在重试... x={x}/30")
-                continue
+        logger.info(title="Done", info=f"{Fore.GREEN}歌单歌曲下载完成!")
 
-    logger.info(title="Done", info=f"{Fore.GREEN}歌单歌曲下载完成!")
+    else:
+        for _id in id_list:
+            data = get_netease_song_info(_id)
+            musicname = data["musicname"]
+            singername = data["singername"]
+            for x in range(3):
+                try:
+                    download_url = music.get_song_url_c(_id)["url"]
+                    _song = SongStruct()
+                    _song.song_name = musicname
+                    _song.singer_name = singername
+                    logger.debug(download_url)
+                    download_url.find("test")
+                    logger.info(title="Downloading", info=musicname)
+                    match_music_type(download_url, _song)
+                    break
+                except Exception:
+                    logger.error(f"获取歌曲链接失败，可能是该歌曲暂无版权。正在重试... x={x}/3")
+                    continue
 
 
 def getNeteasePlaylistM2(playlist_id):
@@ -859,99 +970,122 @@ def getQQMusicPlaylistM1(playlist_id):
     _playlist = json.loads(requests.get(_playlist).text)
 
     pl_songs_data = []
+    id_list = []
     for _song in _playlist["data"]["songlist"]:
         _song_struct = SongStruct_Playlist()
         _song_struct.song_name = _song["songorig"]
         _song_struct.singer = _song["singer"]
         _song_struct.al_name = _song["songname"]
         pl_songs_data.append(_song_struct)
+        id_list.append(_song["songmid"])
 
-    search_res = {}
+    if not using_api_beta:
+        search_res = {}
 
-    index = 0
-    for _song in pl_songs_data:
-        clear()
-        print("============================\n正在爬取歌单中的所有歌曲信息, 请稍等...")
-        print(f"进度: {index} / {len(pl_songs_data)}\n============================\n\n")
-        refresh_ua()
-        for x in range(30):
-            try:
-                logger.info(title="Getting", info=f"{_song.al_name} - {_song.singer[0]['name']}")
-                search_res[index] = music.search(f"{_song.al_name} {_song.singer[0]['name']}", cookies)
-                var = search_res.get(index)[0]["data"]
-                logger.info(title="Done", info=f"{Fore.GREEN}{_song.song_name} - {_song.singer[0]['name']}")
-                index += 1
-                music_type = "wy"
-                break
-            except Exception:
-                traceback.print_exc(file=open("error.txt", "a+"))
-                logger.error(f"无法获取歌曲data对象，正在切换检索源并重试...  x={x}/30")
-                if music_type == "wy":
-                    music_type = "qq"
-                else:
+        index = 0
+        for _song in pl_songs_data:
+            clear()
+            print("============================\n正在爬取歌单中的所有歌曲信息, 请稍等...")
+            print(f"进度: {index} / {len(pl_songs_data)}\n============================\n\n")
+            refresh_ua()
+            for x in range(30):
+                try:
+                    logger.info(title="Getting", info=f"{_song.al_name} - {_song.singer[0]['name']}")
+                    search_res[index] = music.search(f"{_song.al_name} {_song.singer[0]['name']}", cookies)
+                    var = search_res.get(index)[0]["data"]
+                    logger.info(title="Done", info=f"{Fore.GREEN}{_song.song_name} - {_song.singer[0]['name']}")
+                    index += 1
                     music_type = "wy"
-                time.sleep(0.5)
-                continue
+                    break
+                except Exception:
+                    traceback.print_exc(file=open("error.txt", "a+"))
+                    logger.error(f"无法获取歌曲data对象，正在切换检索源并重试...  x={x}/30")
+                    if music_type == "wy":
+                        music_type = "qq"
+                    else:
+                        music_type = "wy"
+                    time.sleep(0.5)
+                    continue
 
-    logger.debug(search_res)
+        logger.debug(search_res)
 
-    song_data = []
-    for i in range(len(pl_songs_data)):
-        state = False
-        song_pl = pl_songs_data[i]
-        song_search = search_res.get(i)
-        for _song in song_search[0]["data"]:
-            _song_name = _song["songname"]
-            singer = _song["singer"]
-            albumname = _song["albumname"]
-            _song_struct = SongStruct()
-            _song_struct.song_name = _song["songname"]
-            _song_struct.singer = _song["singer"]
-            _song_struct.albumname = _song["albumname"]
-            _song_struct.album_img = _song["album_img"]
-            _song_struct.song_id = _song["songid"]
-            _song_struct.size128 = _song["size128"]
-            _song_struct.size320 = _song["size320"]
-            _song_struct.size_flac = _song["sizeflac"]
-            _song_struct.music_type = song_search[1]
-            if _song_name == song_pl.song_name and singer == song_pl.singer[0]['name'] and albumname == song_pl.al_name:
+        song_data = []
+        for i in range(len(pl_songs_data)):
+            state = False
+            song_pl = pl_songs_data[i]
+            song_search = search_res.get(i)
+            for _song in song_search[0]["data"]:
+                _song_name = _song["songname"]
+                singer = _song["singer"]
+                albumname = _song["albumname"]
+                _song_struct = SongStruct()
+                _song_struct.song_name = _song["songname"]
+                _song_struct.singer = _song["singer"]
+                _song_struct.albumname = _song["albumname"]
+                _song_struct.album_img = _song["album_img"]
+                _song_struct.song_id = _song["songid"]
+                _song_struct.size128 = _song["size128"]
+                _song_struct.size320 = _song["size320"]
+                _song_struct.size_flac = _song["sizeflac"]
+                _song_struct.music_type = song_search[1]
+                if _song_name == song_pl.song_name and singer == song_pl.singer[0][
+                    'name'] and albumname == song_pl.al_name:
+                    song_data.append(_song_struct)
+                    state = True
+                    break
+
+            if not state:
+                _song = song_search[0]["data"][0]
+                _song_struct = SongStruct()
+                _song_struct.song_name = _song["songname"]
+                _song_struct.singer = _song["singer"]
+                _song_struct.albumname = _song["albumname"]
+                _song_struct.album_img = _song["album_img"]
+                _song_struct.song_id = _song["songid"]
+                _song_struct.size128 = _song["size128"]
+                _song_struct.size320 = _song["size320"]
+                _song_struct.size_flac = _song["sizeflac"]
+                _song_struct.music_type = song_search[1]
+                logger.error(
+                    f"无法通过当前信息命中目标歌曲，已将《{_song_struct.song_name}》命中结果设为默认（搜索排行第一名）。")
                 song_data.append(_song_struct)
-                state = True
-                break
 
-        if not state:
-            _song = song_search[0]["data"][0]
-            _song_struct = SongStruct()
-            _song_struct.song_name = _song["songname"]
-            _song_struct.singer = _song["singer"]
-            _song_struct.albumname = _song["albumname"]
-            _song_struct.album_img = _song["album_img"]
-            _song_struct.song_id = _song["songid"]
-            _song_struct.size128 = _song["size128"]
-            _song_struct.size320 = _song["size320"]
-            _song_struct.size_flac = _song["sizeflac"]
-            _song_struct.music_type = song_search[1]
-            logger.error(
-                f"无法通过当前信息命中目标歌曲，已将《{_song_struct.song_name}》命中结果设为默认（搜索排行第一名）。")
-            song_data.append(_song_struct)
+        makedirs("Songs")
+        for _song in song_data:
+            logger.info(title="GetLink", info=_song.song_name)
+            for x in range(30):
+                try:
+                    logger.debug("song.music_type=" + _song.music_type)
+                    download_url = match_music_url(_song)
+                    logger.debug(download_url)
+                    download_url.find("test")
+                    logger.info(title="Downloading", info=_song.song_name)
+                    match_music_type(download_url, _song)
+                    break
+                except Exception:
+                    logger.error(f"获取歌曲链接失败，正在重试... x={x}/30")
+                    continue
 
-    makedirs("Songs")
-    for _song in song_data:
-        logger.info(title="GetLink", info=_song.song_name)
-        for x in range(30):
-            try:
-                logger.debug("song.music_type=" + _song.music_type)
-                download_url = music.get_song_url(_song.song_id, cookies, _song.music_type)["url"]
-                logger.debug(download_url)
-                download_url.find("test")
-                logger.info(title="Downloading", info=_song.song_name)
-                match_music_type(download_url, _song)
-                break
-            except Exception:
-                logger.error(f"获取歌曲链接失败，正在重试... x={x}/30")
-                continue
-
-    logger.info(title="Done", info="歌单歌曲下载完成!")
+        logger.info(title="Done", info="歌单歌曲下载完成!")
+    else:
+        for _id in id_list:
+            for x in range(3):
+                try:
+                    download_url = music.get_song_url_q(_id)
+                    data = get_qq_song_info(_id)
+                    musicname = data["musicname"]
+                    singername = data["singername"]
+                    _song = SongStruct()
+                    _song.song_name = musicname
+                    _song.singer_name = singername
+                    logger.debug(download_url)
+                    download_url.find("test")
+                    logger.info(title="Downloading", info=musicname)
+                    match_music_type(download_url, _song)
+                    break
+                except Exception:
+                    logger.error(f"获取歌曲链接失败，可能是该歌曲暂无版权。正在重试... x={x}/3")
+                    continue
 
 
 def getQQMusicPlaylistM2(playlist_id):
@@ -975,13 +1109,16 @@ def getQQMusicPlaylistM2(playlist_id):
         surl = json.loads(surl)
         surl = surl["data"]
 
-        name = requests.get(NODE_API_QQ + "/song?songmid=" + str(_id),
-                            headers=headers).text
-        name = json.loads(name)
-        musicname = name["data"]["track_info"]["name"]
-        singername = name["data"]["track_info"]["singer"]
-        singername = singername[0]["name"]
+        # name = requests.get(NODE_API_QQ + "/song?songmid=" + str(_id),
+        #                     headers=headers).text
+        # name = json.loads(name)
+        # musicname = name["data"]["track_info"]["name"]
+        # singername = name["data"]["track_info"]["singer"]
+        # singername = singername[0]["name"]
         # print("[get!] url =", surl)
+        data = get_qq_song_info(_id)
+        musicname = data["musicname"]
+        singername = data["singername"]
         t1 = Thread(target=save_music, args=(surl, musicname, singername))
         t1.start()
         tlist.append(t1)
@@ -1093,34 +1230,34 @@ def convert_cookies_to_dict(_cookies):
 
 def output_help_list():
     # print(Fore.YELLOW, end="")
-    print("平台切换指令\n"
-          "$#wy# - 将搜索源切换成网易云音乐\n"
-          "$#qq# - 将搜索源切换成QQ音乐\n\n其他指令\n"
-          "$#pld-wy-1# - 使用歌单批量下载，模式1(不稳定，非常容易被ban，但是无需会员就能下载无损)\n"
-          "$#pld-wy-2# - 使用歌单批量下载，模式2(稳定，速度快且不容易被ban，需要登录来获取更好的音质)\n"
-          "$#pld-qq-1# - 使用歌单批量下载，模式1(不稳定，同上)\n"
-          "$#pld-qq-2# - 使用歌单批量下载，模式2(速度快，同时会频繁掉歌)\n"
-          "$#login-wy# - 登录网易云账号，pld-wy-2下载歌单时将用自己的cookies\n"
-          "$#login-wy-p# - 通过验证码登录到网易云账号，pld-wy-2下载歌单时将用自己的cookies\n"
-          "$#check-wy# - 验证网易云登录cookies的有效性\n"
-          "$#flac2mp3# - 自动转换Songs/Songs_nodeapi里的音乐为mp3\n"
-          "$#scr-wy# - 自动刷单曲听歌量，需要先登录($#login-wy#)，如果没有生效很有可能是cookies掉了，重新登录就行了\n"
-          "$#lrc-wy# - 爬取网易云单曲歌词(包含原版歌词和中文翻译)\n"
-          "$#about# - 查看项目信息\n"
-          "$#faq# - 查看常见问题")
+    print(f"{Fore.MAGENTA}$#wy#{Style.RESET_ALL} - 将搜索源切换成网易云音乐\n"
+          f"{Fore.MAGENTA}$#qq#{Style.RESET_ALL} - 将搜索源切换成QQ音乐\n"
+          f"{Fore.MAGENTA}$#pld-wy-1#{Style.RESET_ALL} - 网易云歌单批量下载，所有请求经过API服务器(旧API: 不稳定，容易被封ip，但是无需会员就能下载无损，APIβ: 若服务器无故障则持续稳定，不会主动封ip)\n"
+          f"{Fore.MAGENTA}$#pld-wy-2#{Style.RESET_ALL} - 网易云歌单批量下载(本地)，所有请求只经过本地，需自行解决会员问题(稳定，速度快且不容易被封，但需要登录来获取无损音频)\n"
+          f"{Fore.MAGENTA}$#pld-qq-1#{Style.RESET_ALL} - QQ音乐歌单批量下载，同上(旧API: 不稳定，同上, APIβ: 稳定，同上)\n"
+          f"{Fore.MAGENTA}$#pld-qq-2#{Style.RESET_ALL} - QQ音乐歌单批量下载(本地)，同上(速度快，同时会频繁掉歌)\n"
+          f"{Fore.MAGENTA}$#login-wy#{Style.RESET_ALL} - 登录网易云账号，pld-wy-2下载歌单时将用自己的cookies\n"
+          f"{Fore.MAGENTA}$#login-wy-p#{Style.RESET_ALL} - 通过验证码登录到网易云账号，pld-wy-2下载歌单时将用自己的cookies\n"
+          f"{Fore.MAGENTA}$#check-wy#{Style.RESET_ALL} - 验证网易云登录cookies的有效性\n"
+          f"{Fore.MAGENTA}$#flac2mp3#{Style.RESET_ALL} - 自动转换Songs/Songs_nodeapi里的音乐为mp3\n"
+          f"{Fore.MAGENTA}$#scr-wy#{Style.RESET_ALL} - 自动刷单曲听歌量，需要先登录($#login-wy#)，如果没有生效很有可能是cookies掉了，重新登录就行了\n"
+          f"{Fore.MAGENTA}$#lrc-wy#{Style.RESET_ALL} - 爬取网易云单曲歌词(包含原版歌词和中文翻译)\n"
+          f"{Fore.MAGENTA}$#about#{Style.RESET_ALL} - 查看项目信息\n"
+          f"{Fore.MAGENTA}$#faq#{Style.RESET_ALL} - 查看常见问题")
 
     reset_print()
 
 
 def player_call_back(event):
     global player
-    clear()
+    gotoxy(0, 0)
     print("正在试听所选歌曲，按下esc退出播放...")
     i = int(round(player.get_position(), 2) * 100)
-    a = "*" * i
+    a = "#" * i
     b = "." * (100 - i)
     c = (i / 100) * 100
-    print("\r[{}] {:^3.0f}%[{}->{}]".format(playing_song_name, c, a, b), end="")
+    print("\r[{}] {:^3.0f}%[{}{}]".format(Fore.CYAN + playing_song_name + Style.RESET_ALL, c,
+                                          Fore.GREEN + a + Style.RESET_ALL, Fore.RED + b + Style.RESET_ALL), end="")
     # print("".center(50 // 2, "-"))
 
 
@@ -1149,15 +1286,16 @@ def get_playlist_id_qq(url):
 
 
 def search_plid(url):
-    if type(url) != int:
+    try:
+        int(url)
+        return url
+    except Exception:
         if "music.163.com" in url:
             return get_playlist_id_netease(url)
         elif "y.qq.com" in url:
             return get_playlist_id_qq(url)
         else:
             return None
-    else:
-        return url
 
 
 def get_music_id_netease(url):
@@ -1277,14 +1415,17 @@ def reset_print():
 
 
 def read_cfg():
-    global API_URL, music_type, DEBUG_MODE, SelectStyle, select_char, autocheck_cookies, config
+    global using_api_beta, download_level_netease, download_level_qq, API_URL_2, music_type, DEBUG_MODE, SelectStyle, select_char, autocheck_cookies, config
     if not os.path.exists("config.ini"):
         write_cfg()
         logger.info(f"{Fore.YELLOW}配置文件不存在，已自动创建。")
     try:
         config.read("config.ini")
-        API_URL = config["API"]["url"]
+        using_api_beta = config.getboolean("API", "using_api_beta")
+        API_URL_2 = config["API"]["api_url"]
         music_type = config["API"]["music_type"]
+        download_level_netease = config["API"]["download_level_netease"]
+        download_level_qq = config["API"]["download_level_qq"]
         # DEBUG_MODE = config["SETTING"]["debug"]
         DEBUG_MODE = config.getboolean("SETTING", "debug")
         SelectStyle = int(config["SETTING"]["select_style"])
@@ -1313,14 +1454,110 @@ def flac2mp3(_base):
     logger.info(f"{Fore.GREEN}已将{_base}目录下的音乐文件转换为mp3格式。")
 
 
+def analyse_song_data(_search_result):
+    _n = 0
+    _songs_data = []
+    for _song in _search_result["data"]:
+        if _n >= 35:
+            break
+        _song_struct = SongStruct()
+        _song_struct.song_name = _song["songname"]
+        _song_struct.singer = _song["singer"]
+        _song_struct.albumname = _song["albumname"]
+        _song_struct.album_img = _song["album_img"]
+        _song_struct.song_id = _song["songid"]
+        _song_struct.size128 = _song["size128"]
+        _song_struct.size320 = _song["size320"]
+        _song_struct.size_flac = _song["sizeflac"]
+        _songs_data.append(_song_struct)
+        _n += 1
+
+    return _songs_data
+
+
+def analyse_song_data_c(_search_result):
+    if music_type == "qq":
+        return analyse_song_data_q(_search_result)
+    _songs_data = []
+    _n = 0
+    for _song in search_result["result"]["songs"]:
+        if _n >= 35:
+            break
+        _song_struct = SongStruct()
+        _song_struct.song_name = _song["name"]
+        _song_struct.singer = _song["artists"][0]["name"]
+        _song_struct.albumname = _song["album"]["name"]
+        _song_struct.album_img = _song["album"]["artist"]["img1v1Url"]
+        _song_struct.song_id = _song["id"]
+        _song_struct.size128 = None
+        _song_struct.size320 = None
+        _song_struct.size_flac = None
+        _songs_data.append(_song_struct)
+        _n += 1
+    return _songs_data
+
+
+def analyse_song_data_q(_search_result):
+    if music_type == "wy":
+        return analyse_song_data_q(_search_result)
+    _songs_data = []
+    _n = 0
+    for _song in search_result["data"]["song"]["list"]:
+        if _n >= 35:
+            break
+        _song_struct = SongStruct()
+        _song_struct.song_name = _song["songname"]
+        _song_struct.singer = _song["singer"][0]["name"]
+        _song_struct.albumname = _song["albumname"]
+        _song_struct.album_img = None
+        _song_struct.song_id = _song["songmid"]
+        _song_struct.size128 = None
+        _song_struct.size320 = None
+        _song_struct.size_flac = None
+        _songs_data.append(_song_struct)
+        _n += 1
+    return _songs_data
+
+
+def output_logo():
+    print(Fore.LIGHTCYAN_EX + f"""
+------------------------------------------------------------------------------------------------------------
+
+ /$$      /$$                     /$$           /$$   /$$           /$$                              
+| $$$    /$$$                    |__/          | $$  | $$          | $$                              
+| $$$$  /$$$$ /$$   /$$  /$$$$$$$ /$$  /$$$$$$$| $$  | $$  /$$$$$$ | $$  /$$$$$$   /$$$$$$   /$$$$$$ 
+| $$ $$/$$ $$| $$  | $$ /$$_____/| $$ /$$_____/| $$$$$$$$ /$$__  $$| $$ /$$__  $$ /$$__  $$ /$$__  $$
+| $$  $$$| $$| $$  | $$|  $$$$$$ | $$| $$      | $$__  $$| $$$$$$$$| $$| $$  \ $$| $$$$$$$$| $$  \__/
+| $$\  $ | $$| $$  | $$ \____  $$| $$| $$      | $$  | $$| $$_____/| $$| $$  | $$| $$_____/| $$      
+| $$ \/  | $$|  $$$$$$/ /$$$$$$$/| $$|  $$$$$$$| $$  | $$|  $$$$$$$| $$| $$$$$$$/|  $$$$$$$| $$      
+|__/     |__/ \______/ |_______/ |__/ \_______/|__/  |__/ \_______/|__/| $$____/  \_______/|__/      
+                                                                       | $$                          
+                                                                       | $$                    {Fore.BLUE}@im-cwuom   {Fore.LIGHTCYAN_EX}   
+                                                                       |__/                    
+------------------------------------------------------------------------------------------------------------""" + Style.RESET_ALL)
+
+
 if __name__ == '__main__':
-    refresh_ua()
     logger = Logger()
+    # 读取配置文件
+    read_cfg()
+    output_logo()
+    makedirs("Songs")
+    makedirs("Songs_nodeapi")
+
+    if using_api_beta:
+        # print("".center(100, "-"))
+        print(
+            f"\n{Fore.YELLOW}Warning: 当前音乐接口为β版，可能会出现不稳定现象。若部分功能出现问题请将using_api_beta改为False。\n"
+            f"当然，如果你乐意参与测试，可以忽略此警告。这是我们自己搭建的接口，因为用的人少理论上也许比旧的API更加稳定。{Style.RESET_ALL}\n")
+        # print("".center(100, "-"), "\n")
+    else:
+        print("\n")
+
+    refresh_ua()
     logger.info(title="Starting", info="正在初始化程序，这可能需要一些时间来获取数据。")
     music = Music()
     cookies = {}
-    # 读取配置文件
-    read_cfg()
 
     if os.path.exists("cookies_netease.txt"):
         f = open("cookies_netease.txt", "r")
@@ -1334,23 +1571,25 @@ if __name__ == '__main__':
 
     logger.info(f"当前平台: {music_type}, 可在歌曲输入框使用'$#help#'查看帮助。")
 
-    try:  # 破解反爬
-        code = music.get_code()
-        logger.info(title="OK", info=f"获取code成功, code={code}。正在抓取cookies....")
-        cookies = music.get_cookies(code)
-        logger.info(title="Done", info=f"获取cookies成功。cookies={cookies}，初始化完成。")
+    if not using_api_beta:
+        try:  # 破解反爬
+            code = music.get_code()
+            logger.info(title="OK", info=f"获取code成功, code={code}。正在抓取cookies....")
+            cookies = music.get_cookies(code)
+            logger.info(title="Done", info=f"获取cookies成功。cookies={cookies}，初始化完成。")
+        except Exception as e:
+            logger.error(
+                "在初始化程序时发生了错误，请检查网络连接。若持续出现此错误，则有可能是对方的API服务器出现了故障或是反爬手段增强了。请关注最新动态")
+            logger.error(e)
+            traceback.print_exc(file=open("error.txt", "a+"))
 
-        print("".center(50 // 2, "="))
-        output_help_list()
-        print("".center(50 // 2, "="))
-    except Exception as e:
-        logger.error(
-            "在初始化程序时发生了错误，请检查网络连接。若持续出现此错误，则有可能是对方的API服务器出现了故障或是反爬手段增强了。请关注最新动态")
-        logger.error(e)
-        traceback.print_exc(file=open("error.txt", "a+"))
+    print("".center(25, "="))
+    output_help_list()
+    print("".center(25, "="))
 
     while True:
         song_name = input("请输入要下载的歌曲名称或歌曲url(特殊指令格式为'$#[command]#', $#help#可查看特殊指令)\n> ")
+        INDEX = 1
         if song_name == "$#help#":
             output_help_list()
         if song_name == "$#wy#":
@@ -1480,8 +1719,7 @@ if __name__ == '__main__':
             flac2mp3(base)
 
         if song_name == "$#faq#":
-            print("Q: 为什么下载的音乐有问题/无法搜索音乐/频繁报错/无法下载?\nA: "
-                  "本项目使用的是别人的API，可能是对方的API服务器反爬手段增强了或是对本程序做出了一些限制。又或是API服务器目前正出现故障，请关注最新动态或是过个几小时/一天再去使用。")
+            print("https://github.com/cwuom/MusicHelper/#faq")
 
         try:
             if song_name[0] + song_name[1] == "$#" and song_name[-1] == "#":
@@ -1520,36 +1758,24 @@ if __name__ == '__main__':
             if "https://" in res:
                 logger.error("不受支持的音乐链接，仅限网易云音乐单曲链接。")
                 continue
-
-        search_result = music.search(song_name, _cookies=cookies)[0]
-        songs_data = []
-        # noinspection PyBroadException
-        n = 0
         try:
-            for song in search_result["data"]:
-                if n >= 35:
-                    break
-                song_struct = SongStruct()
-                song_struct.song_name = song["songname"]
-                song_struct.singer = song["singer"]
-                song_struct.albumname = song["albumname"]
-                song_struct.album_img = song["album_img"]
-                song_struct.song_id = song["songid"]
-                song_struct.size128 = song["size128"]
-                song_struct.size320 = song["size320"]
-                song_struct.size_flac = song["sizeflac"]
-                songs_data.append(song_struct)
-                n += 1
+            if not using_api_beta:
+                search_result = music.search(song_name, _cookies=cookies)[0]
+                songs_data = analyse_song_data(search_result)
+            else:
+                search_result = music.search_c(song_name)[0]
+                songs_data = analyse_song_data_c(search_result)
+
         except Exception:
-            logger.error(songs_data)
             logger.error("无法解析音乐数据，API服务器可能出现了故障，请稍后重试。")
             traceback.print_exc(file=open("error.txt", "a+"))
             continue
 
-        INDEX_MAX = len(songs_data)
-
         clear()
+        INDEX_MAX = len(songs_data)
         logger.info(title="Done", info="歌曲列表加载完成。使用上下键选择歌曲，回车下载。")
+        disable_keyboard_flag = True
+        Thread(target=disable_keyboard_event).start()
         try:
             if SelectStyle == 0:
                 SelectStyle0()
@@ -1569,7 +1795,4 @@ if __name__ == '__main__':
             logger.error(e)
             traceback.print_exc(file=open("error.txt", "a+"))
 
-        print("为了防止误触，请输入'!c'继续.... Ctrl+C退出")
-        while True:
-            if input() == "!c":
-                break
+        disable_keyboard_flag = False
