@@ -207,6 +207,8 @@ https://wwjj.lanzouw.com/iHlCi1ap290d
 ### A: 请确认网易云API服务已经正确启动并且没有被关闭或者确认下歌单链接是否正确。正确歌单链接示例``https://music.163.com/#/playlist?id=3865036``。如果输入内容符合规范，那么大概率是歌单中的歌曲太多了，挑几首必要的创建新歌单再试试吧。
 ## Q: 提示``[ERR] /song/detail?ids=66285&timestamp=1696647857450 { status: 400, body: { code: -460, message: '网络太拥挤，请稍候再试！' } }``怎么办？
 ### 网易云API炸了，或者被风控了。过段时间重新解析一下或者直接重启路由器再试试
+## Q: [ERROR - 23:48:30] 自动启动API服务失败，找不到node/app.js，请手动启动。
+### A: 参考[#1](https://github.com/cwuom/MusicHelper/issues/1)
 ---
 ## 我有其它问题
 ### A： [Issues · cwuom/MusicHelper (github.com)](https://github.com/cwuom/MusicHelper/issues)
