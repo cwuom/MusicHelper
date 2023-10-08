@@ -233,7 +233,7 @@ https://wwjj.lanzouw.com/iHlCi1ap290d
 - http://music.cwuom.love:36775
 - http://musicv2.cwuom.love:41464
 - http://musicv3.cwuom.love:44757
-
+>  解析节点请在config.ini中更换(如`api_url = http://music.cwuom.love:36775`)
 ----
 
 # 🔴 注意事项
