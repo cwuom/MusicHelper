@@ -161,6 +161,7 @@ check_netease_cookies = False
 
 
 ```
+
 # 授权您的音乐账号✅
 ## 登录网易云账号
 ### 二维码登录
@@ -169,6 +170,9 @@ check_netease_cookies = False
 ### 手机号登录
 1. 在搜索歌曲的地方输入"$#login-wy#"即可进入手机号登录界面。
 2. 及时输入正确的验证码，即可完成登录。
+
+---
+
 
 # 附加组件下载⬇️
 ## 歌单解析API工具(只解析单曲无需下载)
@@ -195,18 +199,24 @@ https://wwjj.lanzouw.com/iyYaj1anz8mf
 https://wwjj.lanzouw.com/iHlCi1ap290d
 ```
 
+---
+
 # FAQ💭
 ## Q: 为什么下载出来的音频全都是试听版(30s)？
 ### A: 请确保你已经扫码登录了网易云，如果登录了依旧还是试听版那么请确保你有网易云的VIP。如果你有VIP依旧无法解决上述问题，那么就可以尝试重新登录（也许是cookies掉了）。
 ---
 ## Q: 初始化的时候出现 ``[ERROR - 21:00:32] HTTPSConnectionPool(host='ghxcx.lovestu.com', port=443): Max retries exceeded with url: /api/index/today_secret (Caused by ProxyError('Unable to connect to proxy', OSError(0, 'Error')))`` 之类的报错怎么办？
 ### A: 请关闭全局梯子或将梯子设为虚拟网卡模式(Service Mode)
+---
 ## Q: 解析歌曲的时候出现``无法匹配http://mobileoc.music.tc.qq.com/的文件类型，因为他不受支持。``之类的报错怎么办？
 ### A: API炸了，过段时间再解析试试吧。
+---
 ## Q: 一直提示 ``无法解析音乐链接，可能是其音乐链接不包含单曲ID。请检查后重试`` 怎么办？
 ### A: 请确认网易云API服务已经正确启动并且没有被关闭或者确认下歌单链接是否正确。正确歌单链接示例``https://music.163.com/#/playlist?id=3865036``。如果输入内容符合规范，那么大概率是歌单中的歌曲太多了，挑几首必要的创建新歌单再试试吧。
+---
 ## Q: 提示``[ERR] /song/detail?ids=66285&timestamp=1696647857450 { status: 400, body: { code: -460, message: '网络太拥挤，请稍候再试！' } }``怎么办？
 ### 网易云API炸了，或者被风控了。过段时间重新解析一下或者直接重启路由器再试试
+---
 ## Q: [ERROR - 23:48:30] 自动启动API服务失败，找不到node/app.js，请手动启动。
 ### A: 参考[#1](https://github.com/cwuom/MusicHelper/issues/1)
 ---
