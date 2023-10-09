@@ -14,6 +14,7 @@ import sys
 import time
 import traceback
 from base64 import b64decode
+from inspect import isclass
 from msvcrt import getwch
 from random import randint, choice
 from threading import Thread
@@ -29,6 +30,9 @@ import multitasking
 import signal
 from tqdm import tqdm
 from colorama import Fore, Back, Style
+from ctypes import windll, pythonapi, c_long, py_object
+from win32con import SW_SHOWMAXIMIZED, SHOW_FULLSCREEN, SW_MAXIMIZE
+from win32gui import ShowWindow
 
 vlc_on = False
 
@@ -146,10 +150,10 @@ def download(url: str, file_name: str):
             # 一块文件的大小
             chunk_size = 1024
             bar = tqdm(total=file_size, desc=f'{file_name}', position=0, ncols=100, unit='B', unit_scale=True)
-            with open(file_name, mode='wb') as f:
+            with open(file_name, mode='wb') as _f:
                 # 写入分块文件
                 for chunk in response.iter_content(chunk_size=chunk_size):
-                    f.write(chunk)
+                    _f.write(chunk)
                     bar.update(chunk_size)
             # 关闭进度条
             bar.close()
@@ -197,13 +201,12 @@ def runNodeApi(type="wy"):
             try:
                 with open("start.bat", "w") as w:
                     w.write(cmd)
+                os.system("start /min start.bat")
                 logger.info(title="OK", info="app.js - 服务启动成功")
             except Exception:
                 pass
 
-            os.system("start start.bat")
             time.sleep(3)
-            pass
 
 
 class Player:
@@ -356,6 +359,7 @@ class Logger:
             print(f"[DEBUG - {self.time_now}] {info}")
             reset_print()
 
+logger = Logger()
 
 # 音乐检索/破解类
 class Music:
@@ -464,14 +468,14 @@ class Music:
         return req.cookies.get_dict()
 
     @staticmethod
-    def get_song_url_netease1(song_id):
-        req = requests.get(NODE_API + "/song/download/url?id=" + song_id, cookies=cookies_wy).text
+    def get_song_url_netease1(_song_id):
+        req = requests.get(NODE_API + "/song/download/url?id=" + _song_id, cookies=cookies_wy).text
         logger.debug(req)
         return json.loads(req)["data"]["url"]
 
     @staticmethod
-    def get_song_url_netease2(song_id, _level):
-        req = requests.get(NODE_API + f"/song/url/v1?id={song_id}&level={_level}", cookies=cookies_wy).text
+    def get_song_url_netease2(_song_id, _level):
+        req = requests.get(NODE_API + f"/song/url/v1?id={_song_id}&level={_level}", cookies=cookies_wy).text
         logger.debug(req)
         return json.loads(req)["data"][0]["url"]
 
@@ -501,6 +505,9 @@ def show_result(_index):
     展示歌曲列表
     :param _index: 歌曲索引
     """
+    if len(songs_data) == 0:
+        logger.error("没有找到任何与该关键字匹配的歌曲... 按下Enter重新检索")
+        return None
     index = 0
     for _song in songs_data:
         reset_print()
@@ -514,7 +521,7 @@ def show_result(_index):
     print(
         f"\n{Fore.YELLOW}按下{Fore.RED}回车{Fore.YELLOW}开始下载，{Fore.RED}空格键{Fore.YELLOW}试听... 显示不全请全屏终端程序。{Style.RESET_ALL}")
     print(
-        f"{Fore.GREEN}index:{_index}{Style.RESET_ALL} , "
+        f"{Fore.BLUE}index:{_index}{Style.RESET_ALL}, "
         f"当前选择《{songs_data[_index - 1].song_name} - {songs_data[_index - 1].singer}"
         f" [{songs_data[_index - 1].albumname}]》                                                                      ")
 
@@ -524,23 +531,20 @@ def match_music_url(_song, level=None):
         return music.get_song_url(_song.song_id, cookies)["url"]
     else:
         if level is None:
-            if music_type == "wy":
-                return music.get_song_url_c(_song.song_id)["url"]
-            else:
-                return music.get_song_url_q(_song.song_id)
+            return music.get_song_url_c(_song.song_id)["url"] if music_type == "wy" else (
+                music.get_song_url_q(_song.song_id))
         else:
-            if music_type == "wy":
-                return music.get_song_url_c(_song.song_id, level=level)["url"]
-            else:
-                return music.get_song_url_q(_song.song_id, level=level)["url"]
+            return music.get_song_url_c(_song.song_id, level=level)["url"] if music_type == "wy" else (
+                music.get_song_url_q(_song.song_id, level=level))
 
 
 def hook_keys(x):
-    global playing, player, playing_song_name, should_wait_enter, flag_back
     """
     监听键盘事件
     :param x: 键盘event，包括按键按下松开之类的
     """
+
+    global playing, player, playing_song_name, should_wait_enter, flag_back
     global INDEX, INDEX_MAX, INDEX_MIN
 
     if x.event_type == 'down' and x.name == 'left' and playing:
@@ -568,10 +572,7 @@ def hook_keys(x):
         else:
             _song = songs_data[INDEX - 1]
             logger.info(f"正在解析歌曲下载链接... 请稍等")
-            if music_type == "wy":
-                music_url = match_music_url(_song, level="standard")
-            else:
-                music_url = match_music_url(_song)
+            music_url = match_music_url(_song, level="standard") if music_type == "wy" else match_music_url(_song)
             playing = True
             playing_song_name = _song.song_name + " - " + _song.singer
             play(music_url)
@@ -824,10 +825,7 @@ def getNeteasePlaylistM1(playlist_id):
                 except Exception:
                     traceback.print_exc(file=open("error.txt", "a+"))
                     logger.error(f"无法获取歌曲data对象，正在切换检索源并重试...  x={x}/30")
-                    if music_type == "wy":
-                        music_type = "qq"
-                    else:
-                        music_type = "wy"
+                    music_type = "qq" if music_type == "wy" else "wy"
                     time.sleep(0.5)
                     continue
 
@@ -852,8 +850,8 @@ def getNeteasePlaylistM1(playlist_id):
                 _song_struct.size320 = _song["size320"]
                 _song_struct.size_flac = _song["sizeflac"]
                 _song_struct.music_type = song_search[1]
-                if _song_name == song_pl.song_name and singer == song_pl.singer[0][
-                    'name'] and albumname == song_pl.al_name:
+                if (_song_name == song_pl.song_name and singer == song_pl.singer[0]['name']
+                        and albumname == song_pl.al_name):
                     song_data.append(_song_struct)
                     state = True
                     break
@@ -1000,10 +998,7 @@ def getQQMusicPlaylistM1(playlist_id):
                 except Exception:
                     traceback.print_exc(file=open("error.txt", "a+"))
                     logger.error(f"无法获取歌曲data对象，正在切换检索源并重试...  x={x}/30")
-                    if music_type == "wy":
-                        music_type = "qq"
-                    else:
-                        music_type = "wy"
+                    music_type = "wy" if music_type == "qq" else "wy"
                     time.sleep(0.5)
                     continue
 
@@ -1028,8 +1023,8 @@ def getQQMusicPlaylistM1(playlist_id):
                 _song_struct.size320 = _song["size320"]
                 _song_struct.size_flac = _song["sizeflac"]
                 _song_struct.music_type = song_search[1]
-                if _song_name == song_pl.song_name and singer == song_pl.singer[0][
-                    'name'] and albumname == song_pl.al_name:
+                if (_song_name == song_pl.song_name and singer == song_pl.singer[0]['name']
+                        and albumname == song_pl.al_name):
                     song_data.append(_song_struct)
                     state = True
                     break
@@ -1160,8 +1155,8 @@ def loginNetease():
         check_res = json.loads(requests.get(check_url).text)
         if check_res["code"] == 803:
             cookies_wy = check_res["cookie"]
-            with open("cookies_netease.txt", "w") as f:
-                f.write(cookies_wy)
+            with open("cookies_netease.txt", "w") as _f:
+                _f.write(cookies_wy)
             logger.info(f"{Fore.GREEN}授权登陆成功，已成功写入网易云cookies。")
             cookies_wy = convert_cookies_to_dict(cookies_wy)
             break
@@ -1191,11 +1186,11 @@ def loginNetease_phone():
             req_send = requests.get(f"{NODE_API}/captcha/sent?phone={phone_number}&timestamp={get_timerstamp()}")
             logger.debug(req_send.text)
             while True:
-                code = input("验证码(`!b`退出)> ")
-                if code == "!b":
+                _code = input("验证码(`!b`退出)> ")
+                if _code == "!b":
                     break
                 req_verify = requests.get(
-                    f"{NODE_API}/captcha/verify?phone={phone_number}&captcha={code}&timestamp={get_timerstamp()}").json()
+                    f"{NODE_API}/captcha/verify?phone={phone_number}&captcha={_code}&timestamp={get_timerstamp()}").json()
                 if req_verify["code"] == 200:
                     logger.info(title="OK", info=f"{Fore.GREEN}验证成功，正在抓取cookies.")
                     break
@@ -1203,13 +1198,13 @@ def loginNetease_phone():
                     logger.error("验证码校验失败，可能的原因是输入了不正确的验证码或是验证码过期，请重新输入。")
 
             req_login = requests.get(
-                f"{NODE_API}/login/cellphone?phone={phone_number}&captcha={code}&timestamp={get_timerstamp()}")
+                f"{NODE_API}/login/cellphone?phone={phone_number}&captcha={_code}&timestamp={get_timerstamp()}")
             logger.info(title="Done",
                         info=f"{Fore.GREEN}验证码登录成功，用户昵称: {req_login.json()['profile']['nickname']}")
             cookies_wy = req_login.json()["cookie"]
             logger.debug(cookies_wy)
-            with open("cookies_netease.txt", "w") as f:
-                f.write(cookies_wy)
+            with open("cookies_netease.txt", "w") as _f:
+                _f.write(cookies_wy)
 
             cookies_wy = convert_cookies_to_dict(cookies_wy)
 
@@ -1316,7 +1311,7 @@ def search_mid(string):
         return string
 
 
-def get_songs_netease_m1(song_id):
+def get_songs_netease_m1(_song_id):
     level = input("音质选择: (1) 标准 (2) 较高 (3) 极高 "
                   "(4) 无损 (5) Hi-Res (6) 高清环绕声 "
                   "(7) 沉浸环绕声 (8) 超清母带\n(默认5 - Hi-Res) 请输入序号> ")
@@ -1327,9 +1322,9 @@ def get_songs_netease_m1(song_id):
         logger.info("将使用默认音质进行解析。")
         level = level_list[4]
 
-    url = music.get_song_url_netease2(song_id, level)
+    url = music.get_song_url_netease2(_song_id, level)
 
-    data = get_netease_song_info(song_id)
+    data = get_netease_song_info(_song_id)
     musicname = data["musicname"]
     singername = data["singername"]
 
@@ -1337,9 +1332,9 @@ def get_songs_netease_m1(song_id):
     save_music(url, musicname, singername)
 
 
-def get_songs_netease_m2(song_id):
-    url = music.get_song_url_netease1(song_id)
-    data = get_netease_song_info(song_id)
+def get_songs_netease_m2(_song_id):
+    url = music.get_song_url_netease1(_song_id)
+    data = get_netease_song_info(_song_id)
     musicname = data["musicname"]
     singername = data["singername"]
 
@@ -1390,12 +1385,12 @@ def get_lyric_netease(_song_id):
     singername = data["singername"]
     lyric = req_lrc.json()["lrc"]["lyric"]
     lyric_zh = req_lrc.json()["tlyric"]["lyric"]
-    with open(f"lyric/{musicname}-{singername}_lrc.txt", "w", encoding='utf-8') as f:
-        f.write(lyric)
-        f.close()
-    with open(f"lyric/{musicname}-{singername}_zh.txt", "w", encoding='utf-8') as f:
-        f.write(lyric_zh)
-        f.close()
+    with open(f"lyric/{musicname}-{singername}_lrc.txt", "w", encoding='utf-8') as _f:
+        _f.write(lyric)
+        _f.close()
+    with open(f"lyric/{musicname}-{singername}_zh.txt", "w", encoding='utf-8') as _f:
+        _f.write(lyric_zh)
+        _f.close()
 
     logger.info(title="Done", info=f"歌词已保存至lyric文件夹")
 
@@ -1537,8 +1532,34 @@ def output_logo():
 ------------------------------------------------------------------------------------------------------------""" + Style.RESET_ALL)
 
 
+def show_full_windows():
+    user32 = windll.user32
+    user32.SetProcessDPIAware()
+
+    hWnd = user32.GetForegroundWindow()
+    ShowWindow(hWnd, SW_MAXIMIZE)
+    ShowWindow(hWnd, SHOW_FULLSCREEN)
+    ShowWindow(hWnd, SW_SHOWMAXIMIZED)
+
+
+def _async_raise(tid, exctype):
+    """raises the exception, performs cleanup if needed"""
+    tid = c_long(tid)
+    if not isclass(exctype):
+        exctype = type(exctype)
+    _res = pythonapi.PyThreadState_SetAsyncExc(tid, py_object(exctype))
+    if _res == 0:
+        raise ValueError("invalid thread id")
+    elif _res != 1:
+        # """if it returns a number greater than one, you're in trouble,
+        # and you should call it again with exc=NULL to revert the effect"""
+        pythonapi.PyThreadState_SetAsyncExc(tid, None)
+        raise SystemError("PyThreadState_SetAsyncExc failed")
+
+
 if __name__ == '__main__':
-    logger = Logger()
+    show_full_windows()
+    clear()
     # 读取配置文件
     read_cfg()
     output_logo()
@@ -1706,9 +1727,10 @@ if __name__ == '__main__':
                 continue
 
         if song_name == "$#flac2mp3#":
-            base = input("输入需要转换的文件所在的文件夹名称/路径(`!b`退出)> ")
+            base = input("输入需要转换的文件所在的文件夹名称/路径(`!b`退出)\n(回车默认Songs)> ")
             if base == "!b":
                 continue
+            base = "Songs" if base == "" else base
             if not os.path.exists(base):
                 continue
             if base != "Songs":
@@ -1775,24 +1797,25 @@ if __name__ == '__main__':
         INDEX_MAX = len(songs_data)
         logger.info(title="Done", info="歌曲列表加载完成。使用上下键选择歌曲，回车下载。")
         disable_keyboard_flag = True
-        Thread(target=disable_keyboard_event).start()
+        disable_thread = Thread(target=disable_keyboard_event)
+        disable_thread.start()
         try:
             if SelectStyle == 0:
                 SelectStyle0()
             elif SelectStyle == 1:
                 SelectStyle1()
-            else:
-                SelectStyle0()
 
             if not flag_back:
                 logger.info(title="Done", info=f"{Fore.GREEN}歌曲下载完成...")
             else:
                 clear()
-                logger.info(title="Done", info=f"{Fore.RED}用户取消操作...")
+                logger.info(title="-", info=f"{Fore.RED}用户取消操作...")
         except Exception as e:
-            logger.error(
-                "在选择/下载歌曲时发生了错误，请检查网络连接。若持续出现此错误，则有可能是对方的API服务器出现了故障或是反爬手段增强了。请关注最新动态")
-            logger.error(e)
-            traceback.print_exc(file=open("error.txt", "a+"))
+            if len(songs_data) != 0:
+                logger.error(
+                    "在选择/下载歌曲时发生了错误，请检查网络连接。若持续出现此错误，则有可能是对方的API服务器出现了故障或是反爬手段增强了。请关注最新动态")
+                logger.error(e)
+                traceback.print_exc(file=open("error.txt", "a+"))
 
         disable_keyboard_flag = False
+        _async_raise(disable_thread.ident, SystemExit)
