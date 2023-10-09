@@ -1499,7 +1499,7 @@ def analyse_song_data_c(_search_result):
 
 def analyse_song_data_q(_search_result):
     if music_type == "wy":
-        return analyse_song_data_q(_search_result)
+        return analyse_song_data_c(_search_result)
     _songs_data = []
     _n = 0
     for _song in search_result["data"]["song"]["list"]:
