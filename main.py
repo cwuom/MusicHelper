@@ -14,8 +14,7 @@ import sys
 import time
 import traceback
 from base64 import b64decode
-from inspect import isclass
-from msvcrt import getwch
+from msvcrt import getwch, getch
 from random import randint, choice
 from threading import Thread
 
@@ -30,7 +29,7 @@ import multitasking
 import signal
 from tqdm import tqdm
 from colorama import Fore, Back, Style
-from ctypes import windll, pythonapi, c_long, py_object
+from ctypes import windll
 from win32con import SW_SHOWMAXIMIZED, SHOW_FULLSCREEN, SW_MAXIMIZE
 from win32gui import ShowWindow
 
@@ -359,7 +358,9 @@ class Logger:
             print(f"[DEBUG - {self.time_now}] {info}")
             reset_print()
 
+
 logger = Logger()
+
 
 # 音乐检索/破解类
 class Music:
@@ -642,7 +643,7 @@ def SelectStyle0():
     选择风格0，用上下键选择歌曲，会导致清屏。
     """
 
-    global should_wait_enter
+    global should_wait_enter, disable_keyboard_flag
     clear()
     show_result(INDEX)
 
@@ -666,6 +667,8 @@ def SelectStyle0():
 
     if not flag_back:
         match_music_type(music_url, _song)
+
+    disable_keyboard_flag = False
 
 
 def SelectStyle1():
@@ -1542,19 +1545,6 @@ def show_full_windows():
     ShowWindow(hWnd, SW_SHOWMAXIMIZED)
 
 
-def _async_raise(tid, exctype):
-    """raises the exception, performs cleanup if needed"""
-    tid = c_long(tid)
-    if not isclass(exctype):
-        exctype = type(exctype)
-    _res = pythonapi.PyThreadState_SetAsyncExc(tid, py_object(exctype))
-    if _res == 0:
-        raise ValueError("invalid thread id")
-    elif _res != 1:
-        # """if it returns a number greater than one, you're in trouble,
-        # and you should call it again with exc=NULL to revert the effect"""
-        pythonapi.PyThreadState_SetAsyncExc(tid, None)
-        raise SystemError("PyThreadState_SetAsyncExc failed")
 
 
 if __name__ == '__main__':
@@ -1796,11 +1786,11 @@ if __name__ == '__main__':
         clear()
         INDEX_MAX = len(songs_data)
         logger.info(title="Done", info="歌曲列表加载完成。使用上下键选择歌曲，回车下载。")
-        disable_keyboard_flag = True
-        disable_thread = Thread(target=disable_keyboard_event)
-        disable_thread.start()
         try:
             if SelectStyle == 0:
+                disable_keyboard_flag = True
+                disable_thread = Thread(target=disable_keyboard_event)
+                disable_thread.start()
                 SelectStyle0()
             elif SelectStyle == 1:
                 SelectStyle1()
@@ -1817,5 +1807,5 @@ if __name__ == '__main__':
                 logger.error(e)
                 traceback.print_exc(file=open("error.txt", "a+"))
 
-        disable_keyboard_flag = False
-        _async_raise(disable_thread.ident, SystemExit)
+        print("为了防止误触，双击任意键继续...")
+        getch()
