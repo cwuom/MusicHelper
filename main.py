@@ -201,7 +201,6 @@ def runNodeApi(type="wy"):
             logger.info(title="OK", info="app.js - 服务启动成功")
         except Exception:
             logger.error("app.js - 启动失败")
-            pass
 
 
 class Player:
@@ -409,7 +408,7 @@ class Music:
         :param _cookies: 同上
         :return: 歌曲直链
         """
-        _music_type = music_type if _music_type != "" else _music_type
+        _music_type = music_type if _music_type == "" else _music_type
         data = {
             "action": "gh_music_ajax",
             "type": "getMusicUrl",
@@ -658,8 +657,6 @@ def SelectStyle0():
     if not flag_back:
         match_music_type(music_url, _song)
 
-    disable_keyboard_flag = False
-
 
 def SelectStyle1():
     """
@@ -757,7 +754,8 @@ def save_music(url, music_name, singer_name):
 
 
 def get_netease_song_info(_id):
-    name = requests.get(NODE_API + "/song/detail?ids=" + str(_id) + "&timestamp=" + get_timerstamp(), cookies=cookies_wy).text
+    name = requests.get(NODE_API + "/song/detail?ids=" + str(_id) + "&timestamp=" + get_timerstamp(),
+                        cookies=cookies_wy).text
     name = json.loads(name)
     name = name["songs"][0]
     musicname = name["name"]
@@ -926,14 +924,6 @@ def getNeteasePlaylistM2(playlist_id):
         surl = json.loads(surl)
         surl = surl["data"][0]
         surl = surl["url"]
-
-        # name = requests.get(NODE_API + "/song/detail?ids=" + str(_id) + "&timestamp=" + t,
-        #                     headers=headers, cookies=cookies_wy).text
-        # name = json.loads(name)
-        # name = name["songs"][0]
-        # musicname = name["name"]
-        # singername = name["ar"]
-        # singername = singername[0]["name"]
         data = get_netease_song_info(_id)
         musicname = data["musicname"]
         singername = data["singername"]
@@ -1164,7 +1154,7 @@ def show_phone_number(phone):
     return phone.replace(string, '*******')
 
 
-def loginNetease_phone():
+def loginNeteaseByPhone():
     global cookies_wy
     while True:
         phone_number = pwinput.pwinput(prompt='请输入你网易云绑定的手机号(直接输入Enter退出): ', mask='·')
@@ -1198,9 +1188,7 @@ def loginNetease_phone():
             logger.debug(cookies_wy)
             with open("cookies_netease.txt", "w") as _f:
                 _f.write(cookies_wy)
-
             cookies_wy = convert_cookies_to_dict(cookies_wy)
-
             break
 
 
@@ -1444,7 +1432,6 @@ def flac2mp3(_base):
 
 def analyse_song_data(_search_result):
     _n = 0
-    _songs_data = []
     for _song in _search_result["data"]:
         if _n >= 35:
             break
@@ -1457,54 +1444,50 @@ def analyse_song_data(_search_result):
         _song_struct.size128 = _song["size128"]
         _song_struct.size320 = _song["size320"]
         _song_struct.size_flac = _song["sizeflac"]
-        _songs_data.append(_song_struct)
         _n += 1
+        yield _song_struct
 
-    return _songs_data
+
+def load_qq_song_struct(_song):
+    _song_struct = SongStruct()
+    _song_struct.song_name = _song["songname"]
+    _song_struct.singer = _song["singer"][0]["name"]
+    _song_struct.albumname = _song["albumname"]
+    _song_struct.album_img = None
+    _song_struct.song_id = _song["songmid"]
+    _song_struct.size128 = None
+    _song_struct.size320 = None
+    _song_struct.size_flac = None
+    return _song_struct
+
+
+def load_wy_song_struct(_song):
+    _song_struct = SongStruct()
+    _song_struct.song_name = _song["name"]
+    _song_struct.singer = _song["artists"][0]["name"]
+    _song_struct.albumname = _song["album"]["name"]
+    _song_struct.album_img = _song["album"]["artist"]["img1v1Url"]
+    _song_struct.song_id = _song["id"]
+    _song_struct.size128 = None
+    _song_struct.size320 = None
+    _song_struct.size_flac = None
+    return _song_struct
 
 
 def analyse_song_data_c(_search_result):
+    _n = 0
     if music_type == "qq":
-        return analyse_song_data_q(_search_result)
-    _songs_data = []
-    _n = 0
-    for _song in search_result["result"]["songs"]:
-        if _n >= 35:
-            break
-        _song_struct = SongStruct()
-        _song_struct.song_name = _song["name"]
-        _song_struct.singer = _song["artists"][0]["name"]
-        _song_struct.albumname = _song["album"]["name"]
-        _song_struct.album_img = _song["album"]["artist"]["img1v1Url"]
-        _song_struct.song_id = _song["id"]
-        _song_struct.size128 = None
-        _song_struct.size320 = None
-        _song_struct.size_flac = None
-        _songs_data.append(_song_struct)
-        _n += 1
-    return _songs_data
-
-
-def analyse_song_data_q(_search_result):
-    if music_type == "wy":
-        return analyse_song_data_c(_search_result)
-    _songs_data = []
-    _n = 0
-    for _song in search_result["data"]["song"]["list"]:
-        if _n >= 35:
-            break
-        _song_struct = SongStruct()
-        _song_struct.song_name = _song["songname"]
-        _song_struct.singer = _song["singer"][0]["name"]
-        _song_struct.albumname = _song["albumname"]
-        _song_struct.album_img = None
-        _song_struct.song_id = _song["songmid"]
-        _song_struct.size128 = None
-        _song_struct.size320 = None
-        _song_struct.size_flac = None
-        _songs_data.append(_song_struct)
-        _n += 1
-    return _songs_data
+        for _song in search_result["data"]["song"]["list"]:
+            if _n >= 35:
+                break
+            _n += 1
+            yield load_qq_song_struct(_song)
+    else:
+        for _song in search_result["result"]["songs"]:
+            if _n >= 35:
+                break
+            _n += 1
+            yield load_wy_song_struct(_song)
 
 
 def output_logo():
@@ -1533,8 +1516,6 @@ def show_full_windows():
     ShowWindow(hWnd, SW_MAXIMIZE)
     ShowWindow(hWnd, SHOW_FULLSCREEN)
     ShowWindow(hWnd, SW_SHOWMAXIMIZED)
-
-
 
 
 if __name__ == '__main__':
@@ -1677,7 +1658,7 @@ if __name__ == '__main__':
         if song_name == "$#login-wy-p#":
             runNodeApi()
             try:
-                loginNetease_phone()
+                loginNeteaseByPhone()
             except Exception:
                 traceback.print_exc(file=open("error.txt", "a+"))
                 logger.error("登录失败，在登录时遇到了错误，请检查网络连接或是API服务是否被关闭。")
@@ -1763,10 +1744,10 @@ if __name__ == '__main__':
         try:
             if not using_api_beta:
                 search_result = music.search(song_name, _cookies=cookies)[0]
-                songs_data = analyse_song_data(search_result)
+                songs_data = [d for d in analyse_song_data(search_result)]
             else:
                 search_result = music.search_c(song_name)[0]
-                songs_data = analyse_song_data_c(search_result)
+                songs_data = [d for d in analyse_song_data_c(search_result)]
 
         except Exception:
             logger.error("无法解析音乐数据，API服务器可能出现了故障，请稍后重试。")
@@ -1797,5 +1778,6 @@ if __name__ == '__main__':
                 logger.error(e)
                 traceback.print_exc(file=open("error.txt", "a+"))
 
+        disable_keyboard_flag = False
         print("为了防止误触，双击任意键继续...")
         getch()
