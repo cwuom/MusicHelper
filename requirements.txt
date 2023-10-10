@@ -9,3 +9,4 @@ pwinput~=1.0.3
 colorama~=0.4.3
 imageio_ffmpeg
 pywin32
+retry
