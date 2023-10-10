@@ -767,7 +767,7 @@ def save_music(url, music_name, singer_name):
 
 
 def get_netease_song_info(_id):
-    name = requests.get(NODE_API + "/song/detail?ids=" + str(_id) + "&timestamp=" + get_timerstamp()).text
+    name = requests.get(NODE_API + "/song/detail?ids=" + str(_id) + "&timestamp=" + get_timerstamp(), cookies=cookies_wy).text
     name = json.loads(name)
     name = name["songs"][0]
     musicname = name["name"]
@@ -794,7 +794,7 @@ def getNeteasePlaylistM1(playlist_id):
         raise ValueError("歌单获取失败")
 
     playlist_url = f"{NODE_API}/playlist/track/all?id=" + playlist_id + "&timestamp=" + get_timerstamp()
-    pl_data = json.loads(requests.get(playlist_url).text)
+    pl_data = json.loads(requests.get(playlist_url, cookies=cookies_wy).text)
     pl_data_songs = pl_data["songs"]
 
     pl_songs_data = []
@@ -1355,7 +1355,7 @@ def scrobble_netease(_song_id):
     global scrobble_flag
 
     data = get_netease_song_info(_song_id)
-    song_detail = requests.get(NODE_API + f"/song/detail?ids={_song_id}", cookies=cookies, headers=headers)
+    song_detail = requests.get(NODE_API + f"/song/detail?ids={_song_id}", cookies=cookies_wy, headers=headers)
     dt = json.loads(song_detail.text)
     dt = dt["songs"]
     dt = dt[0]["dt"]
