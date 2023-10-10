@@ -27,6 +27,8 @@ import keyboard
 from subprocess import call, Popen
 import multitasking
 import signal
+
+from retry import retry
 from tqdm import tqdm
 from colorama import Fore, Back, Style
 from ctypes import windll
@@ -135,77 +137,71 @@ def write_cfg():
 
 # ========================== download_helper ==========================
 # https://zhuanlan.zhihu.com/p/369531344
-def download(url: str, file_name: str):
-    for x in range(3):
-        # noinspection PyBroadException
-        try:
-            # 发起 head 请求，即只会获取响应头部信息
-            head = requests.head(url, headers=headers)
-            # 文件大小，以 B 为单位
-            file_size = head.headers.get('Content-Length')
-            if file_size is not None:
-                file_size = int(file_size)
-            response = requests.get(url, headers=headers, stream=True)
-            # 一块文件的大小
-            chunk_size = 1024
-            bar = tqdm(total=file_size, desc=f'{file_name}', position=0, ncols=100, unit='B', unit_scale=True)
-            with open(file_name, mode='wb') as _f:
-                # 写入分块文件
-                for chunk in response.iter_content(chunk_size=chunk_size):
-                    _f.write(chunk)
-                    bar.update(chunk_size)
-            # 关闭进度条
-            bar.close()
-            break
-        except Exception:
-            while True:
-                file_name = f"Songs/不和谐的文件名(请手动重命名)_{randint(100000, 999999)}.mp3"
-                if not os.path.exists(file_name):
-                    break
-            continue
+@retry(tries=5)
+def download(url, file_name):
+    # noinspection PyBroadException
+    try:
+        # 发起 head 请求，即只会获取响应头部信息
+        head = requests.head(url, headers=headers)
+        # 文件大小，以 B 为单位
+        file_size = head.headers.get('Content-Length')
+        if file_size is not None:
+            file_size = int(file_size)
+        response = requests.get(url, headers=headers, stream=True)
+        # 一块文件的大小
+        chunk_size = 1024
+        bar = tqdm(total=file_size, desc=f'{file_name}', position=0, ncols=100, unit='B', unit_scale=True)
+        with open(file_name, mode='wb') as _f:
+            # 写入分块文件
+            for chunk in response.iter_content(chunk_size=chunk_size):
+                _f.write(chunk)
+                bar.update(chunk_size)
+        # 关闭进度条
+        bar.close()
+    except Exception:
+        makedirs("Songs")
+        while True:
+            # file_name = f"Songs/不和谐的文件名(请手动重命名)_{randint(100000, 999999)}.mp3"
+            file_name = re.sub(r"|[\\/:*?\"<>|]+", "", file_name.strip())
+            if not os.path.exists(file_name):
+                raise
 
 
 # =========================================================
 
-
 def runNodeApi(type="wy"):
     logger.info("正在检查接口是否工作...")
 
-    while True:
+    try:
+        API = {"wy": NODE_API, "qq": NODE_API_QQ}
+        requests.get(API[type])
+    except Exception:
+        logger.info("正在启动API服务")
+        if type == "wy":
+            if os.path.exists("node/app.js"):
+                cmd = """
+                cd node
+                node app.js
+                    """
+            else:
+                logger.error("自动启动API服务失败，找不到`node/app.js`，请手动启动。")
+        elif type == "qq":
+            if os.path.exists("nodeQQ"):
+                cmd = """
+                 cd nodeQQ
+                 npm start
+                     """
+            else:
+                logger.error("自动启动API服务失败，找不到`nodeQQ`，请手动启动。")
+
         try:
-            API = {"wy": NODE_API, "qq": NODE_API_QQ}
-            requests.get(API[type])
-            break
+            with open("start.bat", "w") as w:
+                w.write(cmd)
+            os.system("start /min start.bat")
+            logger.info(title="OK", info="app.js - 服务启动成功")
         except Exception:
-            logger.info("正在启动API服务")
-            if type == "wy":
-                if os.path.exists("node/app.js"):
-                    cmd = """
-                    cd node
-                    node app.js
-                        """
-                else:
-                    logger.error("自动启动API服务失败，找不到`node/app.js`，请手动启动。")
-                    break
-            elif type == "qq":
-                if os.path.exists("nodeQQ"):
-                    cmd = """
-                     cd nodeQQ
-                     npm start
-                         """
-                else:
-                    logger.error("自动启动API服务失败，找不到`nodeQQ`，请手动启动。")
-                    break
-
-            try:
-                with open("start.bat", "w") as w:
-                    w.write(cmd)
-                os.system("start /min start.bat")
-                logger.info(title="OK", info="app.js - 服务启动成功")
-            except Exception:
-                pass
-
-            time.sleep(3)
+            logger.error("app.js - 启动失败")
+            pass
 
 
 class Player:
@@ -336,26 +332,24 @@ class SongStruct:
 
 # 自定日志输出类
 class Logger:
-    def __init__(self):
-        self.time_now = None
+    @staticmethod
+    def get_time():
+        return time.strftime('%H:%M:%S', time.localtime())
 
     def info(self, info, title="INFO", color=""):
         reset_print()
-        self.time_now = time.strftime('%H:%M:%S', time.localtime())
-        print(f"{color}[{self.time_now}] [{title}] {info}")
+        print(f"{color}[{self.get_time()}] [{title}] {info}")
         reset_print()
 
     def error(self, info):
         reset_print()
-        self.time_now = time.strftime('%H:%M:%S', time.localtime())
-        print(f"{Fore.RED}[ERROR - {self.time_now}] {info}")
+        print(f"{Fore.RED}[ERROR - {self.get_time()}] {info}")
         reset_print()
 
     def debug(self, info):
         if DEBUG_MODE:
             reset_print()
-            self.time_now = time.strftime('%H:%M:%S', time.localtime())
-            print(f"[DEBUG - {self.time_now}] {info}")
+            print(f"[DEBUG - {self.get_time()}] {info}")
             reset_print()
 
 
@@ -403,10 +397,8 @@ class Music:
             url = f"https://c.y.qq.com/soso/fcgi-bin/search_for_qq_cp?g_tk=5381&uin=0&format=jsonp&jsonpCallback=callback&inCharset=utf-8&outCharset=utf-8&notice=0&platform=h5&needNewCode=1&w={search_word}&zhidaqu=1&catZhida=1&t=0&flag=1&ie=utf-8&sem=1&aggr=0&perpage=35&n=20&p=1&remoteplace=txt.mqq.all&_=1512564562121"
             req = requests.get(url, headers=_headers)
             return [json.loads(req.text.replace("callback(", "")[:-1]), "qq"]
-        elif music_type == "wy":
-            return music.search_c(search_word)
         else:
-            return None
+            return music.search_c(search_word) if music_type == "wy" else None
 
     @staticmethod
     def get_song_url(_song_id, _cookies, _music_type=""):
@@ -417,8 +409,7 @@ class Music:
         :param _cookies: 同上
         :return: 歌曲直链
         """
-        if _music_type == "":
-            _music_type = music_type
+        _music_type = music_type if _music_type != "" else _music_type
         data = {
             "action": "gh_music_ajax",
             "type": "getMusicUrl",
@@ -642,7 +633,6 @@ def SelectStyle0():
     """
     选择风格0，用上下键选择歌曲，会导致清屏。
     """
-
     global should_wait_enter, disable_keyboard_flag
     clear()
     show_result(INDEX)
