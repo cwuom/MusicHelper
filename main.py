@@ -19,7 +19,9 @@ from random import randint, choice
 from threading import Thread
 
 import imageio_ffmpeg
+import npyscreen
 import pwinput
+import pynput
 import pyqrcode
 import requests
 import keyboard
@@ -59,8 +61,8 @@ INDEX = 1
 INDEX_MAX = 0
 INDEX_MIN = 1
 SelectStyle = 0
-music_type = "qq"
-select_char = "X"
+music_source = "qq"
+select_char = "->"
 playing_song_name = ""
 playing = False
 should_wait_enter = True
@@ -70,6 +72,7 @@ autocheck_cookies = False
 download_level_netease = "hires"
 download_level_qq = "flac"
 disable_keyboard_flag = True
+selecting = False
 
 MB = 1024 ** 2
 
@@ -119,7 +122,7 @@ config = configparser.ConfigParser()
 def write_cfg():
     config["API"] = {
         "using_api_beta": True,
-        "music_type": "qq",
+        "music_source": "qq",
         "api_url": "http://music.cwuom.love:36775",
         "download_level_netease": "hires",
         "download_level_qq": "flac"
@@ -127,7 +130,7 @@ def write_cfg():
 
     config['SETTING'] = {
         "Select_Style": "0",
-        "select_char": "X",
+        "select_char": "->",
         "DEBUG": False,
         "check_netease_cookies": False
     }
@@ -326,7 +329,7 @@ class SongStruct:
         self.size320 = 1
         self.size_flac = 1
         self.song_url = ""
-        self.music_type = ""
+        self.music_source = ""
 
 
 # 自定日志输出类
@@ -368,27 +371,27 @@ class Music:
         data = {
             "action": "gh_music_ajax",
             "type": "search",
-            "music_type": music_type,
+            "music_source": music_source,
             "search_word": search_word
         }
         req = requests.post(API_URL, data=data, headers=request_headers, cookies=_cookies)
         # logger.debug(req.text)
-        return [json.loads(req.text), music_type]
+        return [json.loads(req.text), music_source]
 
     @staticmethod
     def search_c(search_word):
-        if music_type == "wy":
+        if music_source == "wy":
             req = requests.get(f"{API_URL_2}/wy/search/{search_word}")
             # logger.debug(req.text)
             return [json.loads(req.text), "wy"]
-        elif music_type == "qq":
+        elif music_source == "qq":
             return music.search_qq(search_word)
         else:
             return None
 
     @staticmethod
     def search_qq(search_word):
-        if music_type == "qq":
+        if music_source == "qq":
             _headers = {
                 'Referer': 'https://y.qq.com',
                 'User-Agent': "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36 Edg/117.0.2045.60"
@@ -397,22 +400,22 @@ class Music:
             req = requests.get(url, headers=_headers)
             return [json.loads(req.text.replace("callback(", "")[:-1]), "qq"]
         else:
-            return music.search_c(search_word) if music_type == "wy" else None
+            return music.search_c(search_word) if music_source == "wy" else None
 
     @staticmethod
-    def get_song_url(_song_id, _cookies, _music_type=""):
+    def get_song_url(_song_id, _cookies, _music_source=""):
         """
         获取歌曲直链，返回结果不保证百分百正确。
-        :param _music_type:
+        :param _music_source:
         :param _song_id: 歌曲id
         :param _cookies: 同上
         :return: 歌曲直链
         """
-        _music_type = music_type if _music_type == "" else _music_type
+        _music_source = music_source if _music_source == "" else _music_source
         data = {
             "action": "gh_music_ajax",
             "type": "getMusicUrl",
-            "music_type": _music_type,
+            "music_source": _music_source,
             "music_size": "flac",
             "songid": _song_id
         }
@@ -500,21 +503,19 @@ def show_result(_index):
         logger.error("没有找到任何与该关键字匹配的歌曲... 按下Enter重新检索")
         return None
     index = 0
+
     for _song in songs_data:
         reset_print()
         index += 1
         if index == _index:
-            print(f"{Back.BLUE}{Fore.BLACK}[{select_char}] {_song.song_name} - {_song.singer} [{_song.albumname}]")
+            print(
+                f"{Fore.GREEN}{select_char} {Back.CYAN} {Fore.BLACK}{_song.song_name} - {_song.singer} [{_song.albumname}] {Style.RESET_ALL + ' ' * 10}")
         else:
-            print(f"[ ] {_song.song_name} - {_song.singer} [{_song.albumname}]")
+            print(f"{_song.song_name} - {_song.singer} [{_song.albumname}]{Style.RESET_ALL + ' ' * 10}")
     reset_print()
 
     print(
-        f"\n{Fore.YELLOW}按下{Fore.RED}回车{Fore.YELLOW}开始下载，{Fore.RED}空格键{Fore.YELLOW}试听... 显示不全请全屏终端程序。{Style.RESET_ALL}")
-    print(
-        f"{Fore.BLUE}index:{_index}{Style.RESET_ALL}, "
-        f"当前选择《{songs_data[_index - 1].song_name} - {songs_data[_index - 1].singer}"
-        f" [{songs_data[_index - 1].albumname}]》                                                                      ")
+        f"\n{Fore.LIGHTYELLOW_EX}按下Enter开始下载，空格键试听... 显示不全请全屏终端程序。{Style.RESET_ALL}")
 
 
 def match_music_url(_song, level=None):
@@ -522,10 +523,10 @@ def match_music_url(_song, level=None):
         return music.get_song_url(_song.song_id, cookies)["url"]
     else:
         if level is None:
-            return music.get_song_url_c(_song.song_id)["url"] if music_type == "wy" else (
+            return music.get_song_url_c(_song.song_id)["url"] if music_source == "wy" else (
                 music.get_song_url_q(_song.song_id))
         else:
-            return music.get_song_url_c(_song.song_id, level=level)["url"] if music_type == "wy" else (
+            return music.get_song_url_c(_song.song_id, level=level)["url"] if music_source == "wy" else (
                 music.get_song_url_q(_song.song_id, level=level))
 
 
@@ -563,7 +564,7 @@ def hook_keys(x):
         else:
             _song = songs_data[INDEX - 1]
             logger.info(f"正在解析歌曲下载链接... 请稍等")
-            music_url = match_music_url(_song, level="standard") if music_type == "wy" else match_music_url(_song)
+            music_url = match_music_url(_song, level="standard") if music_source == "wy" else match_music_url(_song)
             playing = True
             playing_song_name = _song.song_name + " - " + _song.singer
             play(music_url)
@@ -610,7 +611,7 @@ def disable_keyboard_event():
         getwch()
 
 
-def match_music_type(music_url, _song):
+def match_music_source(music_url, _song):
     """
     判断音乐文件后缀类型
     :param music_url: 音乐直链
@@ -655,7 +656,7 @@ def SelectStyle0():
             continue
 
     if not flag_back:
-        match_music_type(music_url, _song)
+        match_music_source(music_url, _song)
 
 
 def SelectStyle1():
@@ -693,7 +694,7 @@ def SelectStyle1():
         makedirs("Songs")
         flag_back = False
 
-        match_music_type(music_url, song)
+        match_music_source(music_url, song)
 
 
 def refresh_ua():
@@ -775,7 +776,7 @@ def get_qq_song_info(_id):
 
 
 def getNeteasePlaylistM1(playlist_id):
-    global music_type
+    global music_source
     playlist_id = search_plid(playlist_id)
     if playlist_id is None:
         logger.error(info="拉取歌单失败，请检查歌单URL是否包含歌单ID。")
@@ -811,12 +812,12 @@ def getNeteasePlaylistM1(playlist_id):
                     var = search_res.get(index)[0]["data"]
                     logger.info(title="Done", info=f"{Fore.GREEN}{_song.song_name} - {_song.singer[0]['name']}")
                     index += 1
-                    music_type = "wy"
+                    music_source = "wy"
                     break
                 except Exception:
                     traceback.print_exc(file=open("error.txt", "a+"))
                     logger.error(f"无法获取歌曲data对象，正在切换检索源并重试...  x={x}/30")
-                    music_type = "qq" if music_type == "wy" else "wy"
+                    music_source = "qq" if music_source == "wy" else "wy"
                     time.sleep(0.5)
                     continue
 
@@ -840,7 +841,7 @@ def getNeteasePlaylistM1(playlist_id):
                 _song_struct.size128 = _song["size128"]
                 _song_struct.size320 = _song["size320"]
                 _song_struct.size_flac = _song["sizeflac"]
-                _song_struct.music_type = song_search[1]
+                _song_struct.music_source = song_search[1]
                 if (_song_name == song_pl.song_name and singer == song_pl.singer[0]['name']
                         and albumname == song_pl.al_name):
                     song_data.append(_song_struct)
@@ -858,7 +859,7 @@ def getNeteasePlaylistM1(playlist_id):
                 _song_struct.size128 = _song["size128"]
                 _song_struct.size320 = _song["size320"]
                 _song_struct.size_flac = _song["sizeflac"]
-                _song_struct.music_type = song_search[1]
+                _song_struct.music_source = song_search[1]
                 logger.error(
                     f"无法通过当前信息命中目标歌曲，已将《{_song_struct.song_name}》命中结果设为默认（搜索排行第一名）。")
                 song_data.append(_song_struct)
@@ -868,12 +869,12 @@ def getNeteasePlaylistM1(playlist_id):
             logger.info(title="GetLink", info=_song.song_name)
             for x in range(30):
                 try:
-                    logger.debug("song.music_type=" + _song.music_type)
+                    logger.debug("song.music_source=" + _song.music_source)
                     download_url = match_music_url(_song)
                     logger.debug(download_url)
                     download_url.find("test")
                     logger.info(title="Downloading", info=_song.song_name)
-                    match_music_type(download_url, _song)
+                    match_music_source(download_url, _song)
                     break
                 except Exception:
                     logger.error(f"获取歌曲链接失败，正在重试... x={x}/30")
@@ -895,7 +896,7 @@ def getNeteasePlaylistM1(playlist_id):
                     logger.debug(download_url)
                     download_url.find("test")
                     logger.info(title="Downloading", info=musicname)
-                    match_music_type(download_url, _song)
+                    match_music_source(download_url, _song)
                     break
                 except Exception:
                     logger.error(f"获取歌曲链接失败，可能是该歌曲暂无版权。正在重试... x={x}/3")
@@ -940,7 +941,7 @@ def getNeteasePlaylistM2(playlist_id):
 
 
 def getQQMusicPlaylistM1(playlist_id):
-    global music_type
+    global music_source
 
     playlist_id = search_plid(playlist_id)
     if playlist_id is None:
@@ -976,12 +977,12 @@ def getQQMusicPlaylistM1(playlist_id):
                     var = search_res.get(index)[0]["data"]
                     logger.info(title="Done", info=f"{Fore.GREEN}{_song.song_name} - {_song.singer[0]['name']}")
                     index += 1
-                    music_type = "wy"
+                    music_source = "wy"
                     break
                 except Exception:
                     traceback.print_exc(file=open("error.txt", "a+"))
                     logger.error(f"无法获取歌曲data对象，正在切换检索源并重试...  x={x}/30")
-                    music_type = "wy" if music_type == "qq" else "wy"
+                    music_source = "wy" if music_source == "qq" else "wy"
                     time.sleep(0.5)
                     continue
 
@@ -1005,7 +1006,7 @@ def getQQMusicPlaylistM1(playlist_id):
                 _song_struct.size128 = _song["size128"]
                 _song_struct.size320 = _song["size320"]
                 _song_struct.size_flac = _song["sizeflac"]
-                _song_struct.music_type = song_search[1]
+                _song_struct.music_source = song_search[1]
                 if (_song_name == song_pl.song_name and singer == song_pl.singer[0]['name']
                         and albumname == song_pl.al_name):
                     song_data.append(_song_struct)
@@ -1023,7 +1024,7 @@ def getQQMusicPlaylistM1(playlist_id):
                 _song_struct.size128 = _song["size128"]
                 _song_struct.size320 = _song["size320"]
                 _song_struct.size_flac = _song["sizeflac"]
-                _song_struct.music_type = song_search[1]
+                _song_struct.music_source = song_search[1]
                 logger.error(
                     f"无法通过当前信息命中目标歌曲，已将《{_song_struct.song_name}》命中结果设为默认（搜索排行第一名）。")
                 song_data.append(_song_struct)
@@ -1033,12 +1034,12 @@ def getQQMusicPlaylistM1(playlist_id):
             logger.info(title="GetLink", info=_song.song_name)
             for x in range(30):
                 try:
-                    logger.debug("song.music_type=" + _song.music_type)
+                    logger.debug("song.music_source=" + _song.music_source)
                     download_url = match_music_url(_song)
                     logger.debug(download_url)
                     download_url.find("test")
                     logger.info(title="Downloading", info=_song.song_name)
-                    match_music_type(download_url, _song)
+                    match_music_source(download_url, _song)
                     break
                 except Exception:
                     logger.error(f"获取歌曲链接失败，正在重试... x={x}/30")
@@ -1059,7 +1060,7 @@ def getQQMusicPlaylistM1(playlist_id):
                     logger.debug(download_url)
                     download_url.find("test")
                     logger.info(title="Downloading", info=musicname)
-                    match_music_type(download_url, _song)
+                    match_music_source(download_url, _song)
                     break
                 except Exception:
                     logger.error(f"获取歌曲链接失败，可能是该歌曲暂无版权。正在重试... x={x}/3")
@@ -1391,7 +1392,7 @@ def reset_print():
 
 
 def read_cfg():
-    global using_api_beta, download_level_netease, download_level_qq, API_URL_2, music_type, DEBUG_MODE, SelectStyle, select_char, autocheck_cookies, config
+    global using_api_beta, download_level_netease, download_level_qq, API_URL_2, music_source, DEBUG_MODE, SelectStyle, select_char, autocheck_cookies, config
     if not os.path.exists("config.ini"):
         write_cfg()
         logger.info(f"{Fore.YELLOW}配置文件不存在，已自动创建。")
@@ -1399,7 +1400,7 @@ def read_cfg():
         config.read("config.ini")
         using_api_beta = config.getboolean("API", "using_api_beta")
         API_URL_2 = config["API"]["api_url"]
-        music_type = config["API"]["music_type"]
+        music_source = config["API"]["music_source"]
         download_level_netease = config["API"]["download_level_netease"]
         download_level_qq = config["API"]["download_level_qq"]
         # DEBUG_MODE = config["SETTING"]["debug"]
@@ -1476,7 +1477,7 @@ def load_wy_song_struct(_song):
 
 def analyse_song_data_c(_search_result):
     _n = 0
-    if music_type == "qq":
+    if music_source == "qq":
         for _song in search_result["data"]["song"]["list"]:
             if _n >= 35:
                 break
@@ -1518,6 +1519,399 @@ def show_full_windows():
     ShowWindow(hWnd, SW_SHOWMAXIMIZED)
 
 
+# ---------------------------Menu---------------------------
+class MultiLine(npyscreen.MultiLine):
+    def __init__(self, screen, values=None, value=None,
+                 slow_scroll=False, scroll_exit=False,
+                 return_exit=False, select_exit=False,
+                 exit_right=False,
+                 widgets_inherit_color=False,
+                 always_show_cursor=False,
+                 allow_filtering=True,
+                 **keywords):
+        super().__init__(screen, values, value, slow_scroll, scroll_exit,
+                         return_exit, select_exit, exit_right, widgets_inherit_color, always_show_cursor,
+                         allow_filtering, **keywords)
+        self.cursor_line_temp = None
+
+    def h_cursor_line_up(self, ch):
+        super().h_cursor_line_up(ch)
+        self.h_select(ch)
+
+    def h_cursor_line_down(self, ch):
+        super().h_cursor_line_down(ch)
+        self.h_select(ch)
+
+    def handle_mouse_event(self, mouse_event):
+        ctr = pynput.mouse.Controller()
+        ctr.release(pynput.mouse.Button.left)
+        ctr.release(pynput.mouse.Button.right)
+        mouse_id, rel_x, rel_y, z, bstate = self.interpret_mouse_event(mouse_event)
+        self.cursor_line = rel_y // self._contained_widget_height + self.start_display_at
+        if self.cursor_line < 0:
+            if self.scroll_exit:
+                self.cursor_line = 0
+                self.h_exit_up(None)
+            else:
+                self.cursor_line = 0
+
+        self.h_select(None)
+        if self.cursor_line == self.cursor_line_temp:
+            time.sleep(0.3)
+            keyboard.write("f")
+        else:
+            self.cursor_line_temp = self.cursor_line
+        self.display()
+
+
+class SelectOne(npyscreen.SelectOne):
+    def h_cursor_line_up(self, ch):
+        super().h_cursor_line_up(ch)
+        self.h_select(ch)
+
+    def h_cursor_line_down(self, ch):
+        super().h_cursor_line_down(ch)
+        self.h_select(ch)
+
+
+class ActionForm(npyscreen.ActionForm):
+    def use_mouse_event(self, mouse_event):
+        ctr = pynput.mouse.Controller()
+        ctr.release(pynput.mouse.Button.left)
+        ctr.release(pynput.mouse.Button.right)
+        wg = self.find_mouse_handler(mouse_event)
+        if wg:
+            self.set_editing(wg)
+            if hasattr(wg, 'handle_mouse_event'):
+                wg.handle_mouse_event(mouse_event)
+            keyboard.press_and_release("Space")
+            keyboard.press_and_release("Enter")
+
+
+class ConfigForm(ActionForm):
+    def __init__(self, name=None, parentApp=None, framed=None, _help=None, color='FORMDEFAULT',
+                 widget_list=None, cycle_widgets=False, *args, **keywords):
+        super().__init__(name, parentApp, framed, _help, color, widget_list, cycle_widgets, args, keywords)
+
+        self.config_list = None
+        config.read("config.ini")
+        self.music_type_index = 0
+        self.select_style_index = 0
+        self.download_level_qq_index = 0
+        self.download_level_netease_index = 0
+        self.download_level_netease_index = 0
+        self.api_url_index = 0
+        self.music_type_index = 0
+        self.select_char_index = 0
+        # API
+        self.using_api_beta = config["API"]["using_api_beta"]
+        self.music_type = config["API"]["music_source"]
+        self.music_type_select_list = ["qq", "wy"]
+        self.music_type_length = len(self.music_type_select_list)
+        self.api_url = config["API"]["api_url"]
+        self.api_url_select_list = ["http://music.cwuom.love:36775",
+                                    "http://musicv2.cwuom.love:41464", "http://musicv3.cwuom.love:44757"]
+        self.api_url_length = len(self.api_url_select_list)
+        self.download_level_netease = config["API"]["download_level_netease"]
+        self.download_level_netease_select_list = ["standard", "higher", "exhigh",
+                                                   "lossless", "hires",
+                                                   "jyeffect", "sky", "jymaster"]
+        self.download_level_netease_length = len(self.download_level_netease_select_list)
+        self.download_level_qq = config["API"]["download_level_qq"]
+        self.download_level_qq_select_list = ["128", "320", "m4a", "flac", "ape"]
+        self.download_level_qq_length = len(self.download_level_qq_select_list)
+        # SETTING
+        self.select_style = config["SETTING"]["select_style"]
+        self.select_style_select_list = ["0", "1"]
+        self.select_style_length = len(self.select_style_select_list)
+        self.select_char = config["SETTING"]["select_char"]
+        self.select_char_select_list = ["->", ">"]
+        self.select_char_length = len(self.select_char_select_list)
+        self.debug = config.getboolean("SETTING", "debug")
+        self.check_netease_cookies = config.getboolean("SETTING", "check_netease_cookies")
+        self.config_val = [f"using_api_beta = {self.using_api_beta}", f"music_source = {self.music_type}",
+                           f"api_url = {self.api_url}", f"download_level_netease = {self.download_level_netease}",
+                           f"download_level_qq = {self.download_level_qq}", f"select_style = {self.select_style}",
+                           f"select_char = {self.select_char}", f"debug = {self.debug}",
+                           f"check_netease_cookies = {self.check_netease_cookies}"]
+        self.config_list = self.add(SelectOne, max_height=15, value=[0, ], name="Config List",
+                                    values=self.config_val, scroll_exit=True)
+
+        self.add(npyscreen.TitleFixedText,
+                 name=f"You can press 'up' or 'down' to select config you want, and using 'spase' to hit it",
+                 editable=False)
+        self.add(npyscreen.TitleFixedText, name=f"Press 'q' or 'e' to change the config, press 'r' to reset all.",
+                 editable=False)
+
+    def set_up_handlers(self):
+        super().set_up_handlers()
+        self.handlers.update({
+            ord("q"): self.on_q,
+            ord("e"): self.on_e,
+            ord("r"): self.reset_config,
+        })
+
+    def create(self):
+        self.name = "Edit config.ini"
+
+    def change_config(self, add=False):
+        val = self.config_list.value[0]
+        if val == 0:
+            self.using_api_beta = not self.using_api_beta
+            self.config_val[val] = f"using_api_beta = {self.using_api_beta}"
+            self.config_list.values = self.config_val
+        if val == 1:
+            self.music_type_index = self.music_type_index - 1 if not add else self.music_type_index + 1
+            self.music_type = self.music_type_select_list[self.music_type_index % self.music_type_length]
+            self.config_val[
+                val] = f"music_source = {self.music_type}"
+            self.config_list.values = self.config_val
+        if val == 2:
+            self.api_url_index = self.api_url_index - 1 if not add else self.api_url_index + 1
+            self.api_url = self.api_url_select_list[self.api_url_index % self.api_url_length]
+            self.config_val[val] = f"api_url = {self.api_url}"
+            self.config_list.values = self.config_val
+        if val == 3:
+            self.download_level_netease_index = self.download_level_netease_index - 1 if not add else self.download_level_netease_index + 1
+            self.download_level_netease = self.download_level_netease_select_list[
+                self.download_level_netease_index % self.download_level_netease_length]
+            self.config_val[val] = (f"download_level_netease = "
+                                    f"{self.download_level_netease}")
+            self.config_list.values = self.config_val
+        if val == 4:
+            self.download_level_qq_index = self.download_level_qq_index - 1 if not add else self.download_level_qq_index + 1
+            self.download_level_qq = self.download_level_qq_select_list[
+                self.download_level_qq_index % self.download_level_qq_length]
+            self.config_val[val] = (f"download_level_qq = "
+                                    f"{self.download_level_qq}")
+            self.config_list.values = self.config_val
+        if val == 5:
+            self.select_style_index = self.select_style_index - 1 if not add else self.select_style_index + 1
+            self.select_style = self.select_style_select_list[self.select_style_index % self.select_style_length]
+            self.config_val[
+                val] = f"select_style = {self.select_style}"
+            self.config_list.values = self.config_val
+        if val == 6:
+            self.select_char_index = self.select_char_index - 1 if not add else self.select_char_index + 1
+            self.select_char = self.select_char_select_list[self.select_char_index % self.select_char_length]
+            self.config_val[
+                val] = f"select_char = {self.select_char}"
+            self.config_list.values = self.config_val
+        if val == 7:
+            self.debug = not self.debug
+            self.config_val[val] = f"debug = {self.debug}"
+            self.config_list.values = self.config_val
+        if val == 8:
+            self.check_netease_cookies = not self.check_netease_cookies
+            self.config_val[val] = f"check_netease_cookies = {self.check_netease_cookies}"
+            self.config_list.values = self.config_val
+
+    def reset_config(self, *args, **keywords):
+        self.config_val = ['using_api_beta = True', 'music_source = qq', 'api_url = http://music.cwuom.love:36775',
+                           'download_level_netease = hires', 'download_level_qq = flac',
+                           'select_style = 0', 'select_char = ->',
+                           'debug = False', 'check_netease_cookies = False']
+
+        self.using_api_beta = True
+        self.music_type = "qq"
+        self.api_url = "http://music.cwuom.love:36775"
+        self.download_level_netease = "hires"
+        self.download_level_qq = "flac"
+        self.select_style = "0"
+        self.select_char = "->"
+        self.debug = False
+        self.check_netease_cookies = False
+        self.config_list.values = self.config_val
+
+        self.music_type_index = 0
+        self.select_style_index = 0
+        self.download_level_qq_index = 0
+        self.download_level_netease_index = 0
+        self.download_level_netease_index = 0
+        self.api_url_index = 0
+        self.music_type_index = 0
+        self.select_char_index = 0
+
+    def on_q(self, *args, **keywords):
+        self.change_config()
+
+    def on_e(self, *args, **keywords):
+        self.change_config(add=True)
+
+    def on_ok(self, *args, **keywords):
+        config["API"] = {
+            "using_api_beta": self.using_api_beta,
+            "music_source": self.music_type,
+            "api_url": self.api_url,
+            "download_level_netease": self.download_level_netease,
+            "download_level_qq": self.download_level_qq
+        }
+
+        config['SETTING'] = {
+            "Select_Style": self.select_style,
+            "select_char": self.select_char,
+            "DEBUG": self.debug,
+            "check_netease_cookies": self.check_netease_cookies
+        }
+
+        os.remove('config.ini')
+        config_file = open('config.ini', 'w')
+        config.write(config_file)
+        config_file.close()
+        logger.info("配置文件设置成功，重启程序后应用。")
+        self.parentApp.switchForm("MAIN")
+
+    def on_cancel(self, *args, **keywords):
+        self.parentApp.switchForm("MAIN")
+
+
+class MenuForm(ActionForm):
+    def __init__(self, name=None, parentApp=None, framed=None, help=None, color='FORMDEFAULT',
+                 widget_list=None, cycle_widgets=False, *args, **keywords):
+        super().__init__(name, parentApp, framed, help, color, widget_list, cycle_widgets, args, keywords)
+        menu_list = ["1. Switch the search source to NetEase music",
+                     "2. Switch the search source to QQ music",
+                     "3. NetEase playlist batch download [server]",
+                     "4. NetEase playlist batch download [local]",
+                     "5. QQ music playlist batch download [server]",
+                     "6. QQ music playlist batch download [local]",
+                     "7. Login NetEase account [qrcode]",
+                     "8. Login NetEase account [verification-code]",
+                     "9. Verify NetEase cookies",
+                     "a. MP3s Converter",
+                     "b. Scrobble [netease][need-login]",
+                     "c. Netease lyrics downloader",
+                     "d. Reset config.ini",
+                     "e. Edit config.ini", ]
+        self.command = self.add(MultiLine, max_height=15, value=[0, ], name="Command List",
+                                values=menu_list, scroll_exit=True)
+
+        self.add(npyscreen.TitleFixedText,
+                 name=f"You can press 'up' or 'down' to select command you want, and using 'spase' to hit it",
+                 editable=False)
+        self.add(npyscreen.TitleFixedText, name=f"Press 'q' to quit, 'f' to confirm it.",
+                 editable=False)
+
+    def set_up_handlers(self):
+        super().set_up_handlers()
+        self.handlers.update({
+            ord("q"): self.on_cancel,
+            ord("f"): self.on_ok,
+            # ----------------------
+            ord("1"): self.on_a,
+            ord("2"): self.on_b,
+            ord("3"): self.on_c,
+            ord("4"): self.on_d,
+            ord("5"): self.on_e,
+            ord("6"): self.on_f,
+            ord("7"): self.on_g,
+            ord("8"): self.on_h,
+            ord("9"): self.on_i,
+            ord("a"): self.on_j,
+            ord("b"): self.on_k,
+            ord("c"): self.on_l,
+            ord("d"): self.on_m,
+            ord("e"): self.on_n,
+            # ---------------------
+        })
+
+    def create(self):
+        self.name = "MusicHelper-Menu"
+
+    def beforeEditing(self):
+        pass
+
+    @staticmethod
+    def set_command(name):
+        global song_name
+        song_name = name
+
+    def on_a(self, *args, **keywords):
+        self.set_command("$#wy#")
+        self.parentApp.switchForm(None)
+
+    def on_b(self, *args, **keywords):
+        self.set_command("$#qq#")
+        self.parentApp.switchForm(None)
+
+    def on_c(self, *args, **keywords):
+        self.set_command("$#pld-wy-1#")
+        self.parentApp.switchForm(None)
+
+    def on_d(self, *args, **keywords):
+        self.set_command("$#pld-wy-2#")
+        self.parentApp.switchForm(None)
+
+    def on_e(self, *args, **keywords):
+        self.set_command("$#pld-qq-1#")
+        self.parentApp.switchForm(None)
+
+    def on_f(self, *args, **keywords):
+        self.set_command("$#pld-qq-2#")
+        self.parentApp.switchForm(None)
+
+    def on_g(self, *args, **keywords):
+        self.set_command("$#login-wy#")
+        self.parentApp.switchForm(None)
+
+    def on_h(self, *args, **keywords):
+        self.set_command("$#login-wy-p#")
+        self.parentApp.switchForm(None)
+
+    def on_i(self, *args, **keywords):
+        self.set_command("$#check-wy#")
+        self.parentApp.switchForm(None)
+
+    def on_j(self, *args, **keywords):
+        self.set_command("$#flac2mp3#")
+        self.parentApp.switchForm(None)
+
+    def on_k(self, *args, **keywords):
+        self.set_command("$#scr-wy#")
+        self.parentApp.switchForm(None)
+
+    def on_l(self, *args, **keywords):
+        self.set_command("$#lrc-wy#")
+        self.parentApp.switchForm(None)
+
+    def on_m(self, *args, **keywords):
+        write_cfg()
+        logger.info("配置文件重置成功，重启程序后应用。")
+        self.parentApp.switchForm(None)
+
+    def on_n(self, *args, **keywords):
+        self.parentApp.switchForm('CONFIG')
+
+    def on_ok(self, *args, **keywords):
+        val = self.command.value
+        if type(val) != int:
+            val = 0
+        def_list = [self.on_a, self.on_b, self.on_c,
+                    self.on_d, self.on_e, self.on_f,
+                    self.on_g, self.on_h, self.on_i,
+                    self.on_j, self.on_k, self.on_l,
+                    self.on_m]
+
+        if val <= 12:
+            def_list[val]()
+        if val == 13:
+            self.parentApp.switchForm('CONFIG')
+        else:
+            self.parentApp.switchForm(None)
+
+    def on_cancel(self, *args, **keywords):
+        self.parentApp.switchForm(None)
+
+
+class MenuApp(npyscreen.NPSAppManaged):
+    def onStart(self):
+        self.addForm("MAIN", MenuForm, name="Menu", color="IMPORTANT")
+        self.addForm("CONFIG", ConfigForm, name="Edit config.ini", color="WARNING")
+
+    def reset(self):
+        self.__init__()
+
+
 if __name__ == '__main__':
     show_full_windows()
     clear()
@@ -1551,7 +1945,7 @@ if __name__ == '__main__':
     else:
         logger.info("未检测到网易云cookies，部分解析功能将以受限模式运行。使用'$#login-wy#'来授权。")
 
-    logger.info(f"当前平台: {music_type}, 可在歌曲输入框使用'$#help#'查看帮助。")
+    logger.info(f"当前平台: {music_source}, 可在歌曲输入框使用'$#help#'查看帮助。")
 
     if not using_api_beta:
         try:  # 破解反爬
@@ -1570,19 +1964,23 @@ if __name__ == '__main__':
     print("".center(25, "="))
 
     while True:
+        selecting = False
         song_name = input("请输入要下载的歌曲名称或歌曲url(特殊指令格式为'$#[command]#', $#help#可查看特殊指令)\n> ")
+        if song_name == "":
+            menuApp = MenuApp()
+            menuApp.run(fork=False)
         INDEX = 1
         if song_name == "$#help#":
             output_help_list()
         if song_name == "$#wy#":
-            music_type = "wy"
-            config.set('API', 'music_type', 'wy')
+            music_source = "wy"
+            config.set('API', 'music_source', 'wy')
             with open('config.ini', 'w') as configfile:
                 config.write(configfile)
             logger.info(f"{Fore.GREEN}成功将检索源切换为{Fore.RED}网易云音乐{Style.RESET_ALL}。")
         if song_name == "$#qq#":
-            music_type = "qq"
-            config.set('API', 'music_type', 'qq')
+            music_source = "qq"
+            config.set('API', 'music_source', 'qq')
             with open('config.ini', 'w') as configfile:
                 config.write(configfile)
             logger.info(f"{Fore.GREEN}成功将检索源切换为{Fore.YELLOW}QQ音乐{Style.RESET_ALL}。")
@@ -1591,7 +1989,7 @@ if __name__ == '__main__':
 
         if song_name == "$#pld-wy-1#":
             runNodeApi()
-            temp_music_type = music
+            temp_music_source = music
             try:
                 playlist = input("(MODE1)(Netease) [输入'!b'返回]\n歌单ID&歌单url> ")
                 if playlist == "!b":
@@ -1600,11 +1998,11 @@ if __name__ == '__main__':
             except Exception:
                 logger.error("错误的，无法解析的歌单ID。请检查(还有一种可能是node服务没有启动或出现了问题)")
                 traceback.print_exc(file=open("error.txt", "a+"))
-            music_type = temp_music_type
+            music_source = temp_music_source
 
         if song_name == "$#pld-wy-2#":
             runNodeApi()
-            temp_music_type = music
+            temp_music_source = music
             try:
                 playlist = input("(MODE2)(Netease) [输入'!b'返回]\n歌单ID&歌单url> ")
                 if playlist == "!b":
@@ -1614,11 +2012,11 @@ if __name__ == '__main__':
                 logger.error("错误的，无法解析的歌单ID。请检查")
                 traceback.print_exc(file=open("error.txt", "a+"))
 
-            music_type = temp_music_type
+            music_source = temp_music_source
 
         if song_name == "$#pld-qq-1#":
             runNodeApi(type="qq")
-            temp_music_type = music
+            temp_music_source = music
             try:
                 playlist = input("(MODE1)(QQ) [输入'!b'返回]\n歌单ID&歌单url> ")
                 if playlist == "!b":
@@ -1628,11 +2026,11 @@ if __name__ == '__main__':
                 logger.error("错误的，无法解析的歌单ID。请检查")
                 traceback.print_exc(file=open("error.txt", "a+"))
 
-            music_type = temp_music_type
+            music_source = temp_music_source
 
         if song_name == "$#pld-qq-2#":
             runNodeApi(type="qq")
-            temp_music_type = music
+            temp_music_source = music
             try:
                 playlist = input("(MODE2)(QQ) [输入'!b'返回]\n歌单ID&歌单url> ")
                 if playlist == "!b":
@@ -1642,7 +2040,7 @@ if __name__ == '__main__':
                 logger.error("错误的，无法解析的歌单ID。请检查")
                 traceback.print_exc(file=open("error.txt", "a+"))
 
-            music_type = temp_music_type
+            music_source = temp_music_source
 
         if song_name == "$#login-wy#":
             runNodeApi()
@@ -1703,13 +2101,13 @@ if __name__ == '__main__':
 
         if song_name == "$#faq#":
             print("https://github.com/cwuom/MusicHelper/#faq")
+            selecting = True
 
         try:
             if song_name[0] + song_name[1] == "$#" and song_name[-1] == "#":
                 continue
         except Exception:
             continue
-
         res = search_mid(song_name)
         if res != song_name:
             if res == 404:
