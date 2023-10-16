@@ -1556,11 +1556,11 @@ class MultiLine(npyscreen.MultiLine):
                 self.cursor_line = 0
 
         self.h_select(None)
-        if self.cursor_line == self.cursor_line_temp:
-            time.sleep(0.3)
-            keyboard.write("f")
-        else:
-            self.cursor_line_temp = self.cursor_line
+        # if self.cursor_line == self.cursor_line_temp:
+        #     time.sleep(0.3)
+        #     keyboard.write("f")
+        # else:
+        #     self.cursor_line_temp = self.cursor_line
         self.display()
 
 
