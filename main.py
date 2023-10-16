@@ -73,6 +73,7 @@ download_level_netease = "hires"
 download_level_qq = "flac"
 disable_keyboard_flag = True
 selecting = False
+cookies_qq = None
 
 MB = 1024 ** 2
 
@@ -767,7 +768,7 @@ def get_netease_song_info(_id):
 
 def get_qq_song_info(_id):
     name = requests.get(NODE_API_QQ + "/song?songmid=" + str(_id),
-                        headers=headers).text
+                        headers=headers, cookies=cookies_qq).text
     name = json.loads(name)
     musicname = name["data"]["track_info"]["name"]
     singername = name["data"]["track_info"]["singer"]
@@ -949,7 +950,7 @@ def getQQMusicPlaylistM1(playlist_id):
         raise ValueError("歌单获取失败")
 
     _playlist = NODE_API_QQ + "/songlist?id=" + playlist_id
-    _playlist = json.loads(requests.get(_playlist).text)
+    _playlist = json.loads(requests.get(_playlist).text, cookies=cookies_qq)
 
     pl_songs_data = []
     id_list = []
@@ -1068,6 +1069,7 @@ def getQQMusicPlaylistM1(playlist_id):
 
 
 def getQQMusicPlaylistM2(playlist_id):
+    global download_level_qq
     playlist_id = search_plid(playlist_id)
     if playlist_id is None:
         logger.error(info="拉取歌单失败，请检查歌单URL是否包含歌单ID。")
@@ -1075,35 +1077,51 @@ def getQQMusicPlaylistM2(playlist_id):
 
     musicIdsList = []
     musicList = json.loads(
-        requests.get(NODE_API_QQ + "/songlist?id=" + playlist_id, headers=headers).text)
+        requests.get(NODE_API_QQ + "/songlist?id=" + playlist_id, headers=headers, cookies=cookies_qq).text)
     for _id in musicList["data"]["songlist"]:
         logger.info(f"获取到音乐: {_id['songmid']}")
         musicIdsList.append(_id["songmid"])
 
     tlist = []
-    for _id in musicIdsList:
-        surl = requests.get(
-            NODE_API_QQ + "/song/url?id=" + _id,
-            headers=headers).text
-        surl = json.loads(surl)
-        surl = surl["data"]
+    failed = 0
+    temp_download_level_qq = download_level_qq
+    if input("您是否有QQ音乐VIP？如果没有则会为您下载mp3格式。否则可能导致所有歌曲下载失败... (回车默认为无，有请输入y)") != "y":
+        download_level_qq = "128"
+    else:
+        if input("这里不是纯粹的指你有没有会员，如果您有会员还需自行设定cookies后才可使用，如果你配置了请直接回车... (没有请输入n)") == "n":
+            download_level_qq = "128"
 
-        # name = requests.get(NODE_API_QQ + "/song?songmid=" + str(_id),
-        #                     headers=headers).text
-        # name = json.loads(name)
-        # musicname = name["data"]["track_info"]["name"]
-        # singername = name["data"]["track_info"]["singer"]
-        # singername = singername[0]["name"]
-        # print("[get!] url =", surl)
-        data = get_qq_song_info(_id)
-        musicname = data["musicname"]
-        singername = data["singername"]
-        t1 = Thread(target=save_music, args=(surl, musicname, singername))
-        t1.start()
-        tlist.append(t1)
+    temp2_download_level_qq = download_level_qq
+
+    for _id in musicIdsList:
+        never_try = True
+        for x in range(2):
+            try:
+                surl = requests.get(
+                    NODE_API_QQ + "/song/url?id=" + _id + "&type="+download_level_qq,
+                    headers=headers, cookies=cookies_qq).text
+                surl = json.loads(surl)
+                surl = surl["data"]
+                data = get_qq_song_info(_id)
+                musicname = data["musicname"]
+                singername = data["singername"]
+                t1 = Thread(target=save_music, args=(surl, musicname, singername))
+                t1.start()
+                tlist.append(t1)
+                download_level_qq = temp2_download_level_qq
+                break
+            except Exception:
+                if never_try:
+                    download_level_qq = "128"
+                    never_try = False
+                    continue
+                failed += 1
+                logger.error(f"{failed} 首歌曲获取失败。可能是版权或会员的问题，若都无误请重新配置您的qq音乐cookies。正在切换下载质量并重试\n歌曲URL: https://y.qq.com/n/ryqq/songDetail/{_id}")
 
     for t in tlist:
         t.join()
+
+    download_level_qq = temp_download_level_qq
 
 
 def decode_base64(base64_data):
@@ -1642,7 +1660,8 @@ class ConfigForm(ActionForm):
                  editable=False)
         self.add(npyscreen.TitleFixedText, name=f"Press 'q' or 'e' to change the config, press 'r' to reset all.",
                  editable=False)
-        self.add(npyscreen.TitleFixedText, name=f"To apply all setting, please click the 'OK' button. Otherwise press the 'Cancel' button",
+        self.add(npyscreen.TitleFixedText,
+                 name=f"To apply all setting, please click the 'OK' button. Otherwise press the 'Cancel' button",
                  editable=False)
 
     def set_up_handlers(self):
@@ -1936,6 +1955,15 @@ if __name__ == '__main__':
     logger.info(title="Starting", info="正在初始化程序，这可能需要一些时间来获取数据。")
     music = Music()
     cookies = {}
+    if os.path.exists("cookies_qq.txt"):
+        try:
+            f = open("cookies_qq.txt", "r")
+            cookies_qq = convert_cookies_to_dict(f.read())
+            f.close()
+        except Exception:
+            logger.error("解析QQ音乐cookies失败，格式错误。")
+
+        logger.info(f"{Fore.GREEN}解析QQ音乐cookies成功。{Style.RESET_ALL}若无法正确下载歌曲请重新配置cookies。")
 
     if os.path.exists("cookies_netease.txt"):
         f = open("cookies_netease.txt", "r")
@@ -1944,10 +1972,12 @@ if __name__ == '__main__':
         if autocheck_cookies:
             logger.info("解析网易云cookies成功，正在验证cookies有效性...")
             check_netease_cookies()
+        else:
+            logger.info(f"{Fore.GREEN}解析网易云cookies成功。{Style.RESET_ALL}使用$#check-wy#来验证cookies有效性。")
     else:
         logger.info("未检测到网易云cookies，部分解析功能将以受限模式运行。使用'$#login-wy#'来授权。")
 
-    logger.info(f"当前平台: {music_source}, 可在歌曲输入框使用'$#help#'查看帮助。")
+    logger.info(f"当前平台: {Fore.RED}{music_source}{Style.RESET_ALL}, 可在歌曲输入框使用'$#help#'查看帮助。")
 
     if not using_api_beta:
         try:  # 破解反爬
