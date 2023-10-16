@@ -1638,9 +1638,11 @@ class ConfigForm(ActionForm):
                                     values=self.config_val, scroll_exit=True)
 
         self.add(npyscreen.TitleFixedText,
-                 name=f"You can press 'up' or 'down' to select config you want, and using 'spase' to hit it",
+                 name=f"You can press 'up' or 'down' to select config you want.",
                  editable=False)
         self.add(npyscreen.TitleFixedText, name=f"Press 'q' or 'e' to change the config, press 'r' to reset all.",
+                 editable=False)
+        self.add(npyscreen.TitleFixedText, name=f"To apply all setting, please click the 'OK' button. Otherwise press the 'Cancel' button",
                  editable=False)
 
     def set_up_handlers(self):
@@ -1787,7 +1789,7 @@ class MenuForm(ActionForm):
                                 values=menu_list, scroll_exit=True)
 
         self.add(npyscreen.TitleFixedText,
-                 name=f"You can press 'up' or 'down' to select command you want, and using 'spase' to hit it",
+                 name=f"You can press 'up' or 'down' to select command you want.",
                  editable=False)
         self.add(npyscreen.TitleFixedText, name=f"Press 'q' to quit, 'f' to confirm it.",
                  editable=False)
