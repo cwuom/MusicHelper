@@ -172,6 +172,10 @@ check_netease_cookies = False
 1. 在搜索歌曲的地方输入"$#login-wy#"即可进入手机号登录界面。
 2. 及时输入正确的验证码，即可完成登录。
 
+## 登录QQ音乐账号
+### cookies登录
+- QQ音乐账号不支持直接登录，如果你想用自己的账号解析音乐就还需自行写入`cookies_qq.txt`到程序运行目录。当然，这里也提供了一键获取cookies的解决方案（前提是你要先在电脑上登录QQ音乐的QQ账号，`TIM`/`QQNT`/`QQ`皆可，微信不支持）然后双击运行`get_qqmusic_cookies.exe`即可启动Edge浏览器帮你自动抓取相应账号的cookies，如果抓取不成功还请手动放入QQ音乐的cookies到`cookies_qq.txt`，微信同理。
+
 ---
 
 # 快捷菜单
