@@ -73,7 +73,7 @@ download_level_netease = "hires"
 download_level_qq = "flac"
 disable_keyboard_flag = True
 selecting = False
-cookies_qq = None
+cookies_qq = {}
 
 MB = 1024 ** 2
 
@@ -950,7 +950,7 @@ def getQQMusicPlaylistM1(playlist_id):
         raise ValueError("歌单获取失败")
 
     _playlist = NODE_API_QQ + "/songlist?id=" + playlist_id
-    _playlist = json.loads(requests.get(_playlist).text, cookies=cookies_qq)
+    _playlist = json.loads(requests.get(_playlist, cookies=cookies_qq).text)
 
     pl_songs_data = []
     id_list = []
