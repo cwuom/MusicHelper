@@ -143,6 +143,7 @@ def write_cfg():
 # https://zhuanlan.zhihu.com/p/369531344
 @retry(tries=5)
 def download(url, file_name):
+    file_name = file_name.replace(':', '')
     # noinspection PyBroadException
     try:
         # 发起 head 请求，即只会获取响应头部信息
@@ -168,7 +169,7 @@ def download(url, file_name):
             # file_name = f"Songs/不和谐的文件名(请手动重命名)_{randint(100000, 999999)}.mp3"
             file_name = re.sub(r"|[\\/:*?\"<>|]+", "", file_name.strip())
             if not os.path.exists(file_name):
-                raise
+                break
 
 
 # =========================================================
@@ -723,6 +724,7 @@ sys.excepthook = handle_exception
 
 
 def save_music(url, music_name, singer_name):
+    music_name = music_name.replace(':', '')
     if url.find(".flac") != -1:
         music_name = 'Songs_nodeapi/%s-%s.flac' % (music_name, singer_name)
     elif url.find(".wav") != -1:
@@ -749,8 +751,9 @@ def save_music(url, music_name, singer_name):
         except Exception:
             traceback.print_exc(file=open("error.txt", "a+"))
             while True:
-                music_name = f"Songs_nodeapi/不和谐的文件名(请手动重命名)_{randint(100000, 999999)}.mp3"
-                if not os.path.exists(music_name):
+                # file_name = f"Songs/不和谐的文件名(请手动重命名)_{randint(100000, 999999)}.mp3"
+                file_name = re.sub(r"|[\\/:*?\"<>|]+", "", music_name.strip())
+                if not os.path.exists(file_name):
                     break
             continue
 
