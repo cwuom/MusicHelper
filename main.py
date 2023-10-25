@@ -373,7 +373,7 @@ class Music:
         data = {
             "action": "gh_music_ajax",
             "type": "search",
-            "music_source": music_source,
+            "music_type": music_source,
             "search_word": search_word
         }
         req = requests.post(API_URL, data=data, headers=request_headers, cookies=_cookies)
@@ -417,7 +417,7 @@ class Music:
         data = {
             "action": "gh_music_ajax",
             "type": "getMusicUrl",
-            "music_source": _music_source,
+            "music_type": _music_source,
             "music_size": "flac",
             "songid": _song_id
         }
