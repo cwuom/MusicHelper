@@ -9,4 +9,9 @@ pwinput~=1.0.3
 colorama~=0.4.3
 imageio_ffmpeg
 pywin32
-retry
+retry~=0.9.2
+npyscreen~=4.10.5
+windows-curses
+pynput~=1.7.6
+selenium~=3.141.0
+webdriver_manager
